@@ -6,15 +6,16 @@
 # On the server node it will also deploy the registry pod if needed.
 #
 # Usage:
-#   sudo ./scripts/setup-registry.sh [NODE_PORT]
+#   sudo ./scripts/setup-registry.sh [REGISTRY_IP] [NODE_PORT]
 #
-# NODE_PORT defaults to 32000.
+# REGISTRY_IP defaults to 192.168.1.110, NODE_PORT defaults to 32000.
 
 set -euo pipefail
 
 # ── Config ────────────────────────────────────────────────────────────────────
-NODE_PORT="${1:-32000}"
-REGISTRY_HOST="localhost:${NODE_PORT}"
+REGISTRY_IP="${1:-192.168.1.110}"
+NODE_PORT="${2:-32000}"
+REGISTRY_HOST="${REGISTRY_IP}:${NODE_PORT}"
 K3S_REGISTRIES="/etc/rancher/k3s/registries.yaml"
 K3S_CONFIG="/etc/rancher/k3s/config.yaml"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
