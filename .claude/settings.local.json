@@ -10,7 +10,8 @@
       "Bash(make build:*)",
       "Bash(git init:*)",
       "Bash(git commit:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git push:*)"
     ]
   }
 }
