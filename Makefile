@@ -1,10 +1,10 @@
 BINARY      := server
-IMAGE       := localhost:32000/sample-grpc
+IMAGE       := 192.168.1.110:32000/sample-grpc
 PORT        := 50051
 PROTO_DIR   := proto
 PB_DIR      := pb
 
-.PHONY: all build test proto docker-build docker-push docker-run deploy clean
+.PHONY: all build test proto docker-build docker-run deploy clean
 
 all: proto build
 
@@ -20,10 +20,7 @@ test:
 	go test -v ./...
 
 docker-build:
-	docker build -t $(IMAGE) .
-
-docker-push:
-	docker push $(IMAGE):latest
+	docker buildx build --platform linux/amd64,linux/arm64 -t $(IMAGE):latest --push .
 
 docker-run:
 	docker run --rm -p $(PORT):$(PORT) $(IMAGE)

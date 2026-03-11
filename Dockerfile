@@ -1,4 +1,9 @@
-FROM golang:1.25-alpine AS builder
+# Always build using the native platform toolchain to avoid QEMU segfaults
+# when cross-compiling. TARGETOS/TARGETARCH are injected by buildx.
+FROM --platform=$BUILDPLATFORM golang:1.25-alpine AS builder
+
+ARG TARGETOS
+ARG TARGETARCH
 
 WORKDIR /app
 
@@ -6,7 +11,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -o server .
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o server .
 
 FROM alpine:3.21
 
