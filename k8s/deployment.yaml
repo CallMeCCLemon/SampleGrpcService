@@ -24,11 +24,8 @@ spec:
     spec:
       containers:
         - name: greeter
-          # Update this to your registry if not loading the image directly onto nodes.
-          # e.g. 192.168.1.100:5000/sample-grpc:latest for a local registry
-          image: sample-grpc:latest
-          # Use IfNotPresent when loading images directly onto nodes (e.g. via `docker save | kubectl cp`)
-          imagePullPolicy: IfNotPresent
+          image: localhost:32000/sample-grpc:latest
+          imagePullPolicy: Always
           ports:
             - name: grpc
               containerPort: 50051
