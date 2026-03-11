@@ -1,0 +1,104 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: registry-system
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: registry-pvc
+  namespace: registry-system
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 10Gi
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: registry
+  namespace: registry-system
+  labels:
+    app: registry
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: registry
+  template:
+    metadata:
+      labels:
+        app: registry
+    spec:
+      # Pin to the control-plane node so the local-path PVC follows the pod.
+      # If your control-plane node uses a different label, adjust accordingly.
+      nodeSelector:
+        node-role.kubernetes.io/control-plane: "true"
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: registry
+          image: registry:2
+          ports:
+            - name: registry
+              containerPort: 5000
+              protocol: TCP
+          env:
+            - name: REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY
+              value: /var/lib/registry
+          volumeMounts:
+            - name: registry-storage
+              mountPath: /var/lib/registry
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /v2/
+              port: registry
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /v2/
+              port: registry
+            initialDelaySeconds: 3
+            periodSeconds: 10
+      volumes:
+        - name: registry-storage
+          persistentVolumeClaim:
+            claimName: registry-pvc
+
+---
+# Exposed as NodePort 32000 so you can push from any machine on your network:
+#   docker push <node-ip>:32000/my-image:tag
+# Pods reference images the same way — containerd on each node resolves it via NodePort.
+apiVersion: v1
+kind: Service
+metadata:
+  name: registry
+  namespace: registry-system
+  labels:
+    app: registry
+spec:
+  type: NodePort
+  selector:
+    app: registry
+  ports:
+    - name: registry
+      port: 5000
+      targetPort: registry
+      nodePort: 32000
+      protocol: TCP

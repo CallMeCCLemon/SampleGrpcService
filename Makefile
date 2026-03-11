@@ -4,7 +4,7 @@ PORT        := 50051
 PROTO_DIR   := proto
 PB_DIR      := pb
 
-.PHONY: all build test proto docker-build docker-run deploy clean
+.PHONY: all build test proto docker-build docker-run deploy setup-registry clean
 
 all: proto build
 
@@ -30,6 +30,9 @@ run:
 
 deploy:
 	kubectl apply -f k8s/deployment.yaml
+
+setup-registry:
+	sudo ./scripts/setup-registry.sh
 
 clean:
 	rm -f $(BINARY)
