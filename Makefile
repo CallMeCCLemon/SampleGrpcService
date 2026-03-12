@@ -30,10 +30,11 @@ test-all:
 
 docker-build:
 	docker buildx build --platform linux/amd64,linux/arm64 \
-	    -t $(IMAGE):$(VERSION) \
+	    -t $(IMAGE):$(VERSION)-$(GIT_SHA) \
 	    -t $(IMAGE):latest \
 	    --build-arg VERSION=$(VERSION)-$(GIT_SHA) \
 	    --push .
+	sed -i '' "s|$(IMAGE):.*|$(IMAGE):$(VERSION)-$(GIT_SHA)|" k8s/deployment.yaml
 
 docker-run:
 	docker run --rm -p $(PORT):$(PORT) $(IMAGE)
