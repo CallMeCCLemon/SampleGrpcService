@@ -6,7 +6,7 @@ PB_DIR      := pb
 VERSION     := $(shell cat VERSION)
 GIT_SHA     := $(shell git rev-parse --short HEAD)
 
-.PHONY: all build test proto docker-build docker-run deploy clean
+.PHONY: all build test test-all proto docker-build docker-run deploy clean
 
 all: proto build
 
@@ -20,6 +20,11 @@ build:
 
 test:
 	go test -v ./...
+
+test-all:
+	DOCKER_HOST=$$(docker context inspect --format '{{.Endpoints.docker.Host}}') \
+	    TESTCONTAINERS_RYUK_DISABLED=true \
+	    go test -v -tags=integration ./...
 
 docker-build:
 	docker buildx build --platform linux/amd64,linux/arm64 \
