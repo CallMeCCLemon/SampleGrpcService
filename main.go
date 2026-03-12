@@ -18,6 +18,9 @@ import (
 
 const port = 50051
 
+// version is injected at build time via -ldflags "-X main.version=<git-sha>".
+var version = "dev"
+
 type server struct {
 	pb.UnimplementedGreeterServer
 }
@@ -86,7 +89,7 @@ func main() {
 	pb.RegisterGreeterServer(s, &server{})
 	reflection.Register(s)
 
-	slog.Info("gRPC server starting", "port", port)
+	slog.Info("gRPC server starting", "port", port, "version", version)
 	if err := s.Serve(lis); err != nil {
 		logger.Fatal("failed to serve", "error", err)
 	}

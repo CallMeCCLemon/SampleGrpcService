@@ -3,6 +3,7 @@ IMAGE       := 192.168.1.110:32000/sample-grpc
 PORT        := 50051
 PROTO_DIR   := proto
 PB_DIR      := pb
+VERSION     := $(shell git rev-parse --short HEAD)
 
 .PHONY: all build test proto docker-build docker-run deploy clean
 
@@ -20,7 +21,7 @@ test:
 	go test -v ./...
 
 docker-build:
-	docker buildx build --platform linux/amd64,linux/arm64 -t $(IMAGE):latest --push .
+	docker buildx build --platform linux/amd64,linux/arm64 -t $(IMAGE):latest --build-arg VERSION=$(VERSION) --push .
 
 docker-run:
 	docker run --rm -p $(PORT):$(PORT) $(IMAGE)
