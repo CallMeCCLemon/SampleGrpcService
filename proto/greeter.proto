@@ -2,11 +2,23 @@ syntax = "proto3";
 
 package greeter;
 
+import "google/api/annotations.proto";
+
 option go_package = "SampleGrpcProject/pb";
 
 service Greeter {
-  rpc SayHello (HelloRequest) returns (HelloReply);
-  rpc SayGoodbye (GoodbyeRequest) returns (GoodbyeReply);
+  rpc SayHello (HelloRequest) returns (HelloReply) {
+    option (google.api.http) = {
+      post: "/hello"
+      body: "*"
+    };
+  }
+  rpc SayGoodbye (GoodbyeRequest) returns (GoodbyeReply) {
+    option (google.api.http) = {
+      post: "/goodbye"
+      body: "*"
+    };
+  }
 }
 
 message HelloRequest {

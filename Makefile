@@ -7,14 +7,15 @@ PB_DIR      := pb
 VERSION     := $(shell cat VERSION)
 GIT_SHA     := $(shell git rev-parse --short HEAD)
 
-.PHONY: all build test test-all proto docker-build docker-run deploy clean loadtest db-cleanup
+.PHONY: all build test test-all proto docker-build docker-run deploy clean loadtest db-cleanup kong-deploy
 
 all: proto build
 
 proto:
 	protoc --go_out=$(PB_DIR) --go_opt=paths=source_relative \
 	       --go-grpc_out=$(PB_DIR) --go-grpc_opt=paths=source_relative \
-	       -I $(PROTO_DIR) $(PROTO_DIR)/*.proto
+	       -I $(PROTO_DIR) -I third_party \
+	       $(PROTO_DIR)/*.proto
 
 build:
 	go build -o $(BINARY) .
@@ -46,6 +47,19 @@ deploy:
 
 loadtest:
 	go run ./cmd/loadtest -addr $(GRPC_ADDR) -concurrency 20 -duration 30s
+
+kong-deploy:
+	kubectl create configmap greeter-proto \
+	    --from-file=greeter.proto=proto/greeter.proto \
+	    --namespace kong \
+	    --dry-run=client -o yaml | kubectl apply -f -
+	kubectl create configmap googleapis-protos \
+	    --from-file=annotations.proto=third_party/google/api/annotations.proto \
+	    --from-file=http.proto=third_party/google/api/http.proto \
+	    --namespace kong \
+	    --dry-run=client -o yaml | kubectl apply -f -
+	kubectl apply -f k8s/kong.yaml
+	kubectl apply -f k8s/deployment.yaml
 
 db-cleanup:
 	kubectl exec -n grpc-demo \

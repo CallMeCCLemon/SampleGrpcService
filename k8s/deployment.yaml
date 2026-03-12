@@ -66,6 +66,10 @@ metadata:
   namespace: grpc-demo
   labels:
     app: greeter
+  annotations:
+    # Tells Kong Ingress Controller to connect to this service using gRPC (h2c)
+    # rather than plain HTTP, enabling the grpc-gateway plugin to transcode.
+    konghq.com/protocol: grpc
 spec:
   type: NodePort
   selector:

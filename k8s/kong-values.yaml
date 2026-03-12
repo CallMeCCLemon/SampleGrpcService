@@ -1,0 +1,29 @@
+# Helm values for kong/ingress (Kong Ingress Controller)
+# Install: helm upgrade --install kong kong/ingress --namespace kong --values k8s/kong-values.yaml
+
+gateway:
+  proxy:
+    type: NodePort
+    http:
+      nodePort: 30080
+    # HTTPS disabled for now — Cloudflare tunnel will handle TLS termination later
+    tls:
+      enabled: false
+
+  # Mount the greeter proto file into the Kong gateway pod so the
+  # grpc-gateway plugin can use it for HTTP/JSON ↔ gRPC transcoding.
+  deployment:
+    userDefinedVolumes:
+      - name: grpc-protos
+        configMap:
+          name: greeter-proto
+      - name: googleapis-protos
+        configMap:
+          name: googleapis-protos
+    userDefinedVolumeMounts:
+      - name: grpc-protos
+        mountPath: /etc/kong/protos
+        readOnly: true
+      - name: googleapis-protos
+        mountPath: /etc/kong/protos/google/api
+        readOnly: true

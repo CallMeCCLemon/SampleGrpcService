@@ -1,0 +1,41 @@
+---
+# Tells Kong to use the grpc-gateway plugin on routes that match the Ingress
+# below, transcoding HTTP/JSON ↔ gRPC using the mounted proto definition.
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: grpc-gateway
+  namespace: grpc-demo
+plugin: grpc-gateway
+config:
+  proto: /etc/kong/protos/greeter.proto
+
+---
+# Routes inbound HTTP traffic from Kong's proxy (port 30080) to the greeter
+# gRPC service. Kong will transcode each request using the grpc-gateway plugin.
+#
+# Endpoints exposed to the web app:
+#   POST http://<node-ip>:30080/greeter.Greeter/SayHello    {"name":"World"}
+#   POST http://<node-ip>:30080/greeter.Greeter/SayGoodbye  {"name":"World"}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: greeter-http
+  namespace: grpc-demo
+  annotations:
+    konghq.com/plugins: grpc-gateway
+    # Tell Kong this Ingress accepts plain HTTP from clients (the plugin handles
+    # the gRPC conversion upstream; see konghq.com/protocol on the Service).
+    konghq.com/protocols: http
+spec:
+  ingressClassName: kong
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: greeter
+                port:
+                  number: 50051
