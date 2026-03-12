@@ -60,14 +60,14 @@ func loggingInterceptor(ctx context.Context, req any, info *grpc.UnaryServerInfo
 				"method", info.FullMethod,
 				"code", st.Code().String(),
 				"error", err,
-				"duration", duration,
+				"duration", duration.String(),
 			)
 		} else {
 			slog.Warn("request completed with non-OK status",
 				"method", info.FullMethod,
 				"code", st.Code().String(),
 				"error", err,
-				"duration", duration,
+				"duration", duration.String(),
 			)
 		}
 		return nil, err
@@ -76,7 +76,7 @@ func loggingInterceptor(ctx context.Context, req any, info *grpc.UnaryServerInfo
 	slog.Info("request completed",
 		"method", info.FullMethod,
 		"response", fmt.Sprintf("%+v", resp),
-		"duration", duration,
+		"duration", duration.String(),
 	)
 	return resp, nil
 }
