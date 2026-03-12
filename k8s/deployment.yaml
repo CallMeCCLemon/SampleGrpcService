@@ -26,6 +26,13 @@ spec:
         - name: greeter
           image: 192.168.1.110:32000/sample-grpc:latest
           imagePullPolicy: Always
+          env:
+            # CNPG creates this secret automatically when the Cluster is ready.
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: greeter-db-app
+                  key: uri
           ports:
             - name: grpc
               containerPort: 50051

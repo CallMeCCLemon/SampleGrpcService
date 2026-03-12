@@ -1,0 +1,32 @@
+---
+# CloudNative-PG Cluster for the greeter service.
+# Apply after the CNPG operator is installed (scripts/install-cnpg.sh).
+#
+# CNPG will automatically create a secret named "greeter-db-app" in the
+# grpc-demo namespace containing the connection URI and credentials.
+# The greeter deployment references this secret for DATABASE_URL.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: greeter-db
+  namespace: grpc-demo
+spec:
+  instances: 1
+
+  storage:
+    storageClass: local-path
+    size: 5Gi
+
+  bootstrap:
+    initdb:
+      database: greeter
+      owner: greeter
+
+  # Resource limits appropriate for a home lab node.
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi

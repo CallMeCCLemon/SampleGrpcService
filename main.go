@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"os"
 	"time"
 
+	"SampleGrpcProject/internal/db"
 	"SampleGrpcProject/internal/logger"
 	pb "SampleGrpcProject/pb"
 
@@ -20,25 +22,40 @@ import (
 
 const port = 50051
 
-// version is injected at build time via -ldflags "-X main.version=<git-sha>".
+// version is injected at build time via -ldflags "-X main.version=<semver-sha>".
 var version = "dev"
+
+// dbWriter is the subset of db.DB the server needs, allowing a noop in tests.
+type dbWriter interface {
+	WriteHelloRequest(ctx context.Context, name, message string) error
+	WriteGoodbyeRequest(ctx context.Context, name, message string) error
+}
 
 type server struct {
 	pb.UnimplementedGreeterServer
+	db dbWriter
 }
 
-func (s *server) SayHello(_ context.Context, req *pb.HelloRequest) (*pb.HelloReply, error) {
+func (s *server) SayHello(ctx context.Context, req *pb.HelloRequest) (*pb.HelloReply, error) {
 	if req.Name == "" {
 		slog.Warn("SayHello called with empty name")
 	}
-	return &pb.HelloReply{Message: "Hello, " + req.Name + "!"}, nil
+	reply := &pb.HelloReply{Message: "Hello, " + req.Name + "!"}
+	if err := s.db.WriteHelloRequest(ctx, req.Name, reply.Message); err != nil {
+		slog.Error("failed to write hello request to db", "error", err)
+	}
+	return reply, nil
 }
 
-func (s *server) SayGoodbye(_ context.Context, req *pb.GoodbyeRequest) (*pb.GoodbyeReply, error) {
+func (s *server) SayGoodbye(ctx context.Context, req *pb.GoodbyeRequest) (*pb.GoodbyeReply, error) {
 	if req.Name == "" {
 		slog.Warn("SayGoodbye called with empty name")
 	}
-	return &pb.GoodbyeReply{Message: "Goodbye, " + req.Name + "!"}, nil
+	reply := &pb.GoodbyeReply{Message: "Goodbye, " + req.Name + "!"}
+	if err := s.db.WriteGoodbyeRequest(ctx, req.Name, reply.Message); err != nil {
+		slog.Error("failed to write goodbye request to db", "error", err)
+	}
+	return reply, nil
 }
 
 // loggingInterceptor logs every unary RPC request and response.
@@ -82,13 +99,28 @@ func loggingInterceptor(ctx context.Context, req any, info *grpc.UnaryServerInfo
 }
 
 func main() {
+	ctx := context.Background()
+
+	dbURL := os.Getenv("DATABASE_URL")
+	if dbURL == "" {
+		logger.Fatal("DATABASE_URL environment variable is not set")
+	}
+
+	slog.Info("connecting to database...")
+	database, err := db.New(ctx, dbURL)
+	if err != nil {
+		logger.Fatal("failed to connect to database", "error", err)
+	}
+	defer database.Close()
+	slog.Info("database connected and schema ready")
+
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
 		logger.Fatal("failed to listen", "port", port, "error", err)
 	}
 
 	s := grpc.NewServer(grpc.UnaryInterceptor(loggingInterceptor))
-	pb.RegisterGreeterServer(s, &server{})
+	pb.RegisterGreeterServer(s, &server{db: database})
 	reflection.Register(s)
 
 	healthSrv := health.NewServer()

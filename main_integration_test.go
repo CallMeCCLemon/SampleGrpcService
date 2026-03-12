@@ -11,6 +11,12 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
+// noopDB satisfies dbWriter for tests, discarding all writes.
+type noopDB struct{}
+
+func (n *noopDB) WriteHelloRequest(_ context.Context, _, _ string) error   { return nil }
+func (n *noopDB) WriteGoodbyeRequest(_ context.Context, _, _ string) error { return nil }
+
 func startTestServer(t *testing.T) string {
 	t.Helper()
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
@@ -19,7 +25,7 @@ func startTestServer(t *testing.T) string {
 	}
 
 	s := grpc.NewServer()
-	pb.RegisterGreeterServer(s, &server{})
+	pb.RegisterGreeterServer(s, &server{db: &noopDB{}})
 
 	go func() {
 		if err := s.Serve(lis); err != nil {
@@ -45,9 +51,9 @@ func TestSayHello(t *testing.T) {
 	client := newTestClient(t, startTestServer(t))
 
 	tests := []struct {
-		name     string
-		input    string
-		wantMsg  string
+		name    string
+		input   string
+		wantMsg string
 	}{
 		{"typical name", "World", "Hello, World!"},
 		{"empty name", "", "Hello, !"},
