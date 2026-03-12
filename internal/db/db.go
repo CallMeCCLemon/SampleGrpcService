@@ -3,81 +3,63 @@ package db
 import (
 	"context"
 	"fmt"
+	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
-// DB wraps a pgx connection pool and exposes methods for each gRPC API.
-type DB struct {
-	pool *pgxpool.Pool
+// HelloRequest represents a row in the hello_requests table.
+type HelloRequest struct {
+	ID        uint      `gorm:"primarykey;autoIncrement"`
+	Name      string    `gorm:"not null"`
+	Message   string    `gorm:"not null"`
+	CreatedAt time.Time `gorm:"not null;autoCreateTime"`
 }
 
-// New connects to the database at connStr and runs schema migrations.
+// GoodbyeRequest represents a row in the goodbye_requests table.
+type GoodbyeRequest struct {
+	ID        uint      `gorm:"primarykey;autoIncrement"`
+	Name      string    `gorm:"not null"`
+	Message   string    `gorm:"not null"`
+	CreatedAt time.Time `gorm:"not null;autoCreateTime"`
+}
+
+// DB wraps a GORM database connection.
+type DB struct {
+	orm *gorm.DB
+}
+
+// New opens a connection to the database and runs AutoMigrate.
 func New(ctx context.Context, connStr string) (*DB, error) {
-	pool, err := pgxpool.New(ctx, connStr)
+	orm, err := gorm.Open(postgres.Open(connStr), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
+	})
 	if err != nil {
-		return nil, fmt.Errorf("create pool: %w", err)
+		return nil, fmt.Errorf("open db: %w", err)
 	}
-	if err := pool.Ping(ctx); err != nil {
-		pool.Close()
-		return nil, fmt.Errorf("ping db: %w", err)
-	}
-	d := &DB{pool: pool}
-	if err := d.migrate(ctx); err != nil {
-		pool.Close()
+
+	if err := orm.WithContext(ctx).AutoMigrate(&HelloRequest{}, &GoodbyeRequest{}); err != nil {
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
-	return d, nil
+
+	return &DB{orm: orm}, nil
 }
 
-// Close releases all connections in the pool.
+// Close releases the underlying database connection.
 func (d *DB) Close() {
-	d.pool.Close()
-}
-
-// migrate creates the request tables if they do not already exist.
-func (d *DB) migrate(ctx context.Context) error {
-	_, err := d.pool.Exec(ctx, `
-		CREATE TABLE IF NOT EXISTS hello_requests (
-			id         BIGSERIAL    PRIMARY KEY,
-			name       TEXT         NOT NULL,
-			message    TEXT         NOT NULL,
-			created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW()
-		)
-	`)
-	if err != nil {
-		return fmt.Errorf("create hello_requests: %w", err)
+	if sqlDB, err := d.orm.DB(); err == nil {
+		sqlDB.Close()
 	}
-
-	_, err = d.pool.Exec(ctx, `
-		CREATE TABLE IF NOT EXISTS goodbye_requests (
-			id         BIGSERIAL    PRIMARY KEY,
-			name       TEXT         NOT NULL,
-			message    TEXT         NOT NULL,
-			created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW()
-		)
-	`)
-	if err != nil {
-		return fmt.Errorf("create goodbye_requests: %w", err)
-	}
-
-	return nil
 }
 
 // WriteHelloRequest persists a SayHello request and its response message.
 func (d *DB) WriteHelloRequest(ctx context.Context, name, message string) error {
-	_, err := d.pool.Exec(ctx,
-		`INSERT INTO hello_requests (name, message) VALUES ($1, $2)`,
-		name, message,
-	)
-	return err
+	return d.orm.WithContext(ctx).Create(&HelloRequest{Name: name, Message: message}).Error
 }
 
 // WriteGoodbyeRequest persists a SayGoodbye request and its response message.
 func (d *DB) WriteGoodbyeRequest(ctx context.Context, name, message string) error {
-	_, err := d.pool.Exec(ctx,
-		`INSERT INTO goodbye_requests (name, message) VALUES ($1, $2)`,
-		name, message,
-	)
-	return err
+	return d.orm.WithContext(ctx).Create(&GoodbyeRequest{Name: name, Message: message}).Error
 }
