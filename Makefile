@@ -36,6 +36,7 @@ run:
 
 deploy:
 	kubectl apply -f k8s/deployment.yaml
+	kubectl set image deployment/greeter greeter=$(IMAGE):$(VERSION) -n grpc-demo
 
 clean:
 	rm -f $(BINARY)
