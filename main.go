@@ -7,11 +7,13 @@ import (
 	"net"
 	"time"
 
-	pb "SampleGrpcProject/pb"
 	"SampleGrpcProject/internal/logger"
+	pb "SampleGrpcProject/pb"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/health"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/status"
 )
@@ -88,6 +90,11 @@ func main() {
 	s := grpc.NewServer(grpc.UnaryInterceptor(loggingInterceptor))
 	pb.RegisterGreeterServer(s, &server{})
 	reflection.Register(s)
+
+	healthSrv := health.NewServer()
+	healthpb.RegisterHealthServer(s, healthSrv)
+	healthSrv.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
+	healthSrv.SetServingStatus("greeter.Greeter", healthpb.HealthCheckResponse_SERVING)
 
 	slog.Info("gRPC server starting", "port", port, "version", version)
 	if err := s.Serve(lis); err != nil {

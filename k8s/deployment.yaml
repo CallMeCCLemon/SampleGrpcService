@@ -38,13 +38,13 @@ spec:
               cpu: 250m
               memory: 128Mi
           livenessProbe:
-            tcpSocket:
-              port: grpc
+            grpc:
+              port: 50051
             initialDelaySeconds: 5
             periodSeconds: 15
           readinessProbe:
-            tcpSocket:
-              port: grpc
+            grpc:
+              port: 50051
             initialDelaySeconds: 3
             periodSeconds: 10
 
