@@ -1,12 +1,13 @@
 BINARY      := server
 IMAGE       := 192.168.1.110:32000/sample-grpc
 PORT        := 50051
+GRPC_ADDR   := 192.168.1.110:30051
 PROTO_DIR   := proto
 PB_DIR      := pb
 VERSION     := $(shell cat VERSION)
 GIT_SHA     := $(shell git rev-parse --short HEAD)
 
-.PHONY: all build test test-all proto docker-build docker-run deploy clean
+.PHONY: all build test test-all proto docker-build docker-run deploy clean loadtest db-cleanup
 
 all: proto build
 
@@ -42,6 +43,14 @@ run:
 deploy:
 	kubectl apply -f k8s/deployment.yaml
 	kubectl set image deployment/greeter greeter=$(IMAGE):$(VERSION) -n grpc-demo
+
+loadtest:
+	go run ./cmd/loadtest -addr $(GRPC_ADDR) -concurrency 20 -duration 30s
+
+db-cleanup:
+	kubectl exec -n grpc-demo \
+	    $$(kubectl get pod -n grpc-demo -l cnpg.io/cluster=greeter-db -o jsonpath='{.items[0].metadata.name}') \
+	    -- psql -U greeter -c "TRUNCATE TABLE hello_requests, goodbye_requests;"
 
 clean:
 	rm -f $(BINARY)
