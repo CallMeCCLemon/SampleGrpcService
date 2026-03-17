@@ -45,6 +45,7 @@ spec:
             periodSeconds: 10
 
 ---
+# NodePort for direct LAN access
 apiVersion: v1
 kind: Service
 metadata:
@@ -61,4 +62,23 @@ spec:
       port: 80
       targetPort: http
       nodePort: 30090
+      protocol: TCP
+
+---
+# ClusterIP targeted by the cloudflared tunnel (grpc-demo.latentlab.cc → http://grpc-demo-service)
+apiVersion: v1
+kind: Service
+metadata:
+  name: grpc-demo-service
+  namespace: grpc-demo
+  labels:
+    app: greeter-web
+spec:
+  type: ClusterIP
+  selector:
+    app: greeter-web
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
       protocol: TCP
