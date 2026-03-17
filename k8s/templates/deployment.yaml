@@ -4,36 +4,36 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: grpc-demo
+  name: ${NAMESPACE}
 
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: greeter
-  namespace: grpc-demo
+  name: ${PROJECT_NAME}
+  namespace: ${NAMESPACE}
   labels:
-    app: greeter
+    app: ${PROJECT_NAME}
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: greeter
+      app: ${PROJECT_NAME}
   template:
     metadata:
       labels:
-        app: greeter
+        app: ${PROJECT_NAME}
     spec:
       containers:
-        - name: greeter
-          image: 192.168.1.110:32000/sample-grpc:latest
+        - name: ${PROJECT_NAME}
+          image: ${IMAGE}:latest
           imagePullPolicy: Always
           env:
             # CNPG creates this secret automatically when the Cluster is ready.
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: greeter-db-app
+                  name: ${PROJECT_NAME}-db-app
                   key: uri
           ports:
             - name: grpc
@@ -64,10 +64,10 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: greeter
-  namespace: grpc-demo
+  name: ${PROJECT_NAME}
+  namespace: ${NAMESPACE}
   labels:
-    app: greeter
+    app: ${PROJECT_NAME}
   annotations:
     # Tells Kong Ingress Controller to connect to this service using gRPC (h2c)
     # rather than plain HTTP, enabling the grpc-gateway plugin to transcode.
@@ -75,10 +75,10 @@ metadata:
 spec:
   type: NodePort
   selector:
-    app: greeter
+    app: ${PROJECT_NAME}
   ports:
     - name: grpc
       port: 50051
       targetPort: grpc
-      nodePort: 30051
+      nodePort: ${GRPC_NODEPORT}
       protocol: TCP

@@ -8,7 +8,7 @@ gateway:
   proxy:
     type: NodePort
     http:
-      nodePort: 30080
+      nodePort: ${KONG_NODEPORT}
     # HTTPS disabled for now — Cloudflare tunnel handles TLS termination.
     tls:
       enabled: false
@@ -19,7 +19,7 @@ gateway:
     userDefinedVolumes:
       - name: grpc-protos
         configMap:
-          name: greeter-proto
+          name: ${PROJECT_NAME}-proto
       - name: googleapis-protos
         configMap:
           name: googleapis-protos

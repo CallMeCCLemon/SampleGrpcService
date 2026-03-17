@@ -84,8 +84,8 @@ spec:
             claimName: registry-pvc
 
 ---
-# Exposed as NodePort 32000 so you can push from any machine on your network:
-#   docker push <node-ip>:32000/my-image:tag
+# Exposed as NodePort ${REGISTRY_PORT} so you can push from any machine on your network:
+#   docker push <node-ip>:${REGISTRY_PORT}/my-image:tag
 # Pods reference images the same way — containerd on each node resolves it via NodePort.
 apiVersion: v1
 kind: Service
@@ -102,5 +102,5 @@ spec:
     - name: registry
       port: 5000
       targetPort: registry
-      nodePort: 32000
+      nodePort: ${REGISTRY_PORT}
       protocol: TCP

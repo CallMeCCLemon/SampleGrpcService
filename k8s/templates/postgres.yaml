@@ -4,14 +4,14 @@
 # CloudNativePG Cluster for the gRPC backend service.
 # Apply after the CNPG operator is installed (scripts/install-cnpg.sh).
 #
-# CNPG automatically creates a secret named "greeter-db-app" in the
-# grpc-demo namespace containing the connection URI and credentials.
+# CNPG automatically creates a secret named "${PROJECT_NAME}-db-app" in the
+# ${NAMESPACE} namespace containing the connection URI and credentials.
 # The backend deployment references this secret for DATABASE_URL.
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
 metadata:
-  name: greeter-db
-  namespace: grpc-demo
+  name: ${PROJECT_NAME}-db
+  namespace: ${NAMESPACE}
 spec:
   instances: 1
 
@@ -21,8 +21,8 @@ spec:
 
   bootstrap:
     initdb:
-      database: greeter
-      owner: greeter
+      database: ${PROJECT_NAME}
+      owner: ${PROJECT_NAME}
 
   # Resource limits appropriate for a home lab node.
   resources:

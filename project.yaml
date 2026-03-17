@@ -1,0 +1,81 @@
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# project.yaml — single source of truth for all project-specific configuration.
+#
+# When reusing this project as a template:
+#   1. Edit the values below.
+#   2. Run `make generate-k8s` to regenerate the k8s manifests from k8s/templates/.
+#   3. Rename proto/greeter.proto to proto/<project_name>.proto and update
+#      its package and service declarations to match your new project name.
+#   4. Run `make proto && make web-proto` to regenerate Go and TypeScript stubs.
+#   5. Build and deploy: `make docker-build && make deploy`.
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# ── Project Identity ──────────────────────────────────────────────────────────
+
+# project_name: base identifier used for k8s resource names (Deployment, Service,
+#   PostgreSQL cluster, proto ConfigMap) and the PostgreSQL database/owner name.
+#   Convention: short, lowercase, no hyphens — matches the proto service name and
+#   the Go package name used in main.go.
+project_name: greeter
+
+# namespace: the k8s namespace where all application resources are deployed.
+#   Change this when running multiple instances on the same cluster.
+namespace: grpc-demo
+
+# image_name: container image name for the Go gRPC backend.
+#   Tagged and pushed as: <node_ip_tailscale>:<registry_port>/<image_name>:<version>-<git-sha>
+#   Referenced in k8s manifests as: <node_ip_lan>:<registry_port>/<image_name>:<version>-<git-sha>
+image_name: sample-grpc
+
+# web_image_name: container image name for the React web front-end.
+#   Same tagging convention as image_name above.
+web_image_name: sample-grpc-web
+
+# ── Public Access ─────────────────────────────────────────────────────────────
+
+# public_domain: the public hostname served via Cloudflare tunnel.
+#   Steps to set up:
+#     1. Create a tunnel in the Cloudflare Zero Trust dashboard.
+#     2. Set its public hostname to this domain, pointing to the ClusterIP service
+#        http://<project_name>-service.<namespace>:80 inside the cluster.
+#     3. Copy k8s/secrets.example.yaml to k8s/secrets.yaml, fill in your token, apply.
+public_domain: grpc-demo.latentlab.cc
+
+# tunnel_secret_name: name of the k8s Secret that holds the Cloudflare tunnel token.
+#   k8s/secrets.yaml (gitignored) must contain a Secret with this name.
+#   See k8s/secrets.example.yaml for the required format.
+tunnel_secret_name: sample-grpc-demo-tunnel-creds
+
+# github_repo: URL of the source repository, shown as a GitHub icon link in the web UI.
+#   Update this when forking or renaming the repository.
+github_repo: https://github.com/CallMeCCLemon/SampleGrpcService
+
+# ── Cluster Networking ────────────────────────────────────────────────────────
+
+# node_ip_lan: LAN IP of the primary k8s node (typically the control-plane).
+#   Used in k8s manifests as the image pull address and for direct LAN access.
+node_ip_lan: 192.168.1.110
+
+# node_ip_tailscale: Tailscale (or other VPN) IP of the same node.
+#   Used by the dev machine to push images (avoids routing constraints on LAN).
+#   Both node_ip_lan and node_ip_tailscale point to the same registry pod —
+#   the registry stores images by repo path, not by the hostname used to push.
+node_ip_tailscale: 100.69.236.43
+
+# registry_port: NodePort exposed by the local container registry pod.
+registry_port: 32000
+
+# ── NodePorts ─────────────────────────────────────────────────────────────────
+# All NodePorts must be in the k8s range 30000–32767 and unique within the cluster.
+
+# grpc_nodeport: NodePort for the gRPC backend service.
+#   Used by: Kong Ingress Controller (upstream), grpcurl, `make loadtest`.
+grpc_nodeport: 30051
+
+# kong_nodeport: NodePort for the Kong API Gateway (HTTP/JSON → gRPC transcoding).
+#   Used by: the Vite dev proxy, curl tests, and any HTTP client hitting the API.
+kong_nodeport: 30080
+
+# web_nodeport: NodePort for the React web front-end (Nginx).
+#   For direct LAN access. Production traffic is routed via the Cloudflare tunnel.
+web_nodeport: 30090

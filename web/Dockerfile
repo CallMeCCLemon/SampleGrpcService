@@ -3,6 +3,8 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 COPY . .
+ARG VITE_GITHUB_REPO
+ENV VITE_GITHUB_REPO=$VITE_GITHUB_REPO
 RUN npm run build
 
 FROM nginx:alpine

@@ -13,8 +13,11 @@ export default defineConfig(({ mode }) => {
     server: {
       hmr: true,
       proxy: {
-        '/hello': kongUrl,
-        '/goodbye': kongUrl,
+        // Proxy any path that starts with a lowercase letter and contains no dots.
+        // This catches all Kong API endpoints (e.g. /hello, /goodbye, /any-future-route)
+        // while leaving Vite internals (/@vite/...), static assets (/assets/main.js,
+        // /favicon.svg), and the root (/) unproxied.
+        '^/[a-z][^.]*$': kongUrl,
       },
     },
   }

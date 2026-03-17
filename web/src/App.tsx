@@ -43,7 +43,7 @@ function App() {
     <div className="app">
       <a
         className="github-link"
-        href="https://github.com/CallMeCCLemon/SampleGrpcService"
+        href={import.meta.env.VITE_GITHUB_REPO ?? 'https://github.com/CallMeCCLemon/SampleGrpcService'}
         target="_blank"
         rel="noopener noreferrer"
         aria-label="View source on GitHub"

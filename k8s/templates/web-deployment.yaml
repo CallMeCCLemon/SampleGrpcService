@@ -4,23 +4,23 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: greeter-web
-  namespace: grpc-demo
+  name: ${PROJECT_NAME}-web
+  namespace: ${NAMESPACE}
   labels:
-    app: greeter-web
+    app: ${PROJECT_NAME}-web
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: greeter-web
+      app: ${PROJECT_NAME}-web
   template:
     metadata:
       labels:
-        app: greeter-web
+        app: ${PROJECT_NAME}-web
     spec:
       containers:
-        - name: greeter-web
-          image: 192.168.1.110:32000/sample-grpc-web:latest
+        - name: ${PROJECT_NAME}-web
+          image: ${WEB_IMAGE}:latest
           imagePullPolicy: Always
           ports:
             - name: http
@@ -51,36 +51,36 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: greeter-web
-  namespace: grpc-demo
+  name: ${PROJECT_NAME}-web
+  namespace: ${NAMESPACE}
   labels:
-    app: greeter-web
+    app: ${PROJECT_NAME}-web
 spec:
   type: NodePort
   selector:
-    app: greeter-web
+    app: ${PROJECT_NAME}-web
   ports:
     - name: http
       port: 80
       targetPort: http
-      nodePort: 30090
+      nodePort: ${WEB_NODEPORT}
       protocol: TCP
 
 ---
 # ClusterIP targeted by the cloudflared tunnel.
 # In the Cloudflare Zero Trust dashboard, set the tunnel's public hostname to route
-# to http://greeter-service.grpc-demo:80 (k8s internal DNS).
+# to http://${PROJECT_NAME}-service.${NAMESPACE}:80 (k8s internal DNS).
 apiVersion: v1
 kind: Service
 metadata:
-  name: greeter-service
-  namespace: grpc-demo
+  name: ${PROJECT_NAME}-service
+  namespace: ${NAMESPACE}
   labels:
-    app: greeter-web
+    app: ${PROJECT_NAME}-web
 spec:
   type: ClusterIP
   selector:
-    app: greeter-web
+    app: ${PROJECT_NAME}-web
   ports:
     - name: http
       port: 80
