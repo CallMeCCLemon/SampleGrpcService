@@ -168,7 +168,7 @@ main() {
     fi
   else
     log "Agent node — skipping registry deployment (run this on the server node for that)."
-    log "Configuring this agent to trust the registry at ${REGISTRY_HOST}."
+    log "Configuring this agent to trust the registry at ${PRIMARY_HOST} (and any additional IPs)."
   fi
 
   configure_registries_yaml
