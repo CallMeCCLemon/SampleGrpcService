@@ -15,7 +15,7 @@ A testbed for exploring how to wire together a Go-based gRPC service, a PostgreS
          │                       │
          ▼                       ▼
   ┌──────────────────────────────────────┐
-  │         k3s Cluster (grpc-demo ns)   │
+  │         k8s Cluster (grpc-demo ns)   │
   │                                      │
   │  ┌────────────────────────────────┐  │
   │  │  greeter-web (Nginx)           │  │◀── :30090
@@ -93,14 +93,14 @@ grpcurl -plaintext -d '{"name": "World"}' <node-ip>:30051 greeter.Greeter/SayHel
 
 ## Stack
 
-| Layer | Technology |
-|-------|-----------|
-| Front-end | React 18 + TypeScript, Vite, Nginx |
+| Layer | Technology                                   |
+|-------|----------------------------------------------|
+| Front-end | React 18 + TypeScript, Vite, Nginx           |
 | API Gateway | Kong (grpc-gateway plugin, HTTP/JSON ↔ gRPC) |
-| gRPC Service | Go 1.25, GORM, CloudNativePG |
-| Database | PostgreSQL via CNPG operator on k3s |
-| Cluster | k3s (multi-node, self-hosted) |
-| Tunnel | Cloudflare cloudflared |
+| gRPC Service | Go 1.25, GORM, CloudNativePG                 |
+| Database | PostgreSQL via CNPG operator on k8s          |
+| Cluster | k8s (multi-node, self-hosted)                |
+| Tunnel | Cloudflare cloudflared                       |
 
 ## Protobuf Workflow
 
