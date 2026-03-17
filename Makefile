@@ -7,7 +7,7 @@ PB_DIR      := pb
 VERSION     := $(shell cat VERSION)
 GIT_SHA     := $(shell git rev-parse --short HEAD)
 
-.PHONY: all build test test-all proto docker-build docker-run deploy clean loadtest db-cleanup kong-deploy
+.PHONY: all build test test-all proto docker-build docker-run deploy clean loadtest db-cleanup kong-deploy web-proto
 
 all: proto build
 
@@ -66,6 +66,15 @@ db-cleanup:
 	kubectl exec -n grpc-demo \
 	    $$(kubectl get pod -n grpc-demo -l cnpg.io/cluster=greeter-db -o jsonpath='{.items[0].metadata.name}') \
 	    -- psql -U greeter -c "TRUNCATE TABLE hello_requests, goodbye_requests;"
+
+web-proto:
+	mkdir -p web/src/generated
+	protoc \
+	    --plugin=protoc-gen-ts_proto=web/node_modules/.bin/protoc-gen-ts_proto \
+	    --ts_proto_out=web/src/generated \
+	    --ts_proto_opt=esModuleInterop=true,outputServices=fetch-client,fetchType=native \
+	    -I $(PROTO_DIR) -I third_party \
+	    $(PROTO_DIR)/*.proto
 
 clean:
 	rm -f $(BINARY)
