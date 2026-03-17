@@ -151,7 +151,9 @@ generate-k8s:
 	    envsubst < "$$tmpl" > "$$out"; \
 	    echo "  $$tmpl -> $$out"; \
 	done
-	@echo "Done. Review changes with 'git diff k8s/' and commit if correct."
+	@printf '# Base environment — loaded in all Vite modes (dev and production build).\n# Values here are baked into the JS bundle at build time.\n#\n# This file is auto-updated by `make generate-k8s` from project.yaml.\n# Do not edit by hand; change github_repo in project.yaml instead.\nVITE_GITHUB_REPO=$(GITHUB_REPO)\n' > web/.env
+	@echo "  project.yaml -> web/.env"
+	@echo "Done. Review changes with 'git diff' and commit if correct."
 	@echo "Note: docker-build will re-pin the image tags in deployment.yaml and web-deployment.yaml."
 
 loadtest:
