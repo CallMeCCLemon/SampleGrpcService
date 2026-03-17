@@ -15,8 +15,8 @@ config:
 # gRPC service. Kong will transcode each request using the grpc-gateway plugin.
 #
 # Endpoints exposed to the web app:
-#   POST http://<node-ip>:30080/greeter.Greeter/SayHello    {"name":"World"}
-#   POST http://<node-ip>:30080/greeter.Greeter/SayGoodbye  {"name":"World"}
+#   POST http://<node-ip>:30080/hello    {"name":"World"}
+#   POST http://<node-ip>:30080/goodbye  {"name":"World"}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:

@@ -23,12 +23,12 @@ PostgreSQL (CNPG)
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/greeter.Greeter/SayHello` | Greet by name, persists request to DB |
-| `POST` | `/greeter.Greeter/SayGoodbye` | Farewell by name, persists request to DB |
+| `POST` | `/hello` | Greet by name, persists request to DB |
+| `POST` | `/goodbye` | Farewell by name, persists request to DB |
 
 Example:
 ```bash
-curl -X POST http://<node-ip>:30080/greeter.Greeter/SayHello \
+curl -X POST http://<node-ip>:30080/hello \
   -H 'Content-Type: application/json' \
   -d '{"name": "World"}'
 ```
