@@ -6,20 +6,30 @@
 # On the server node it will also deploy the registry pod if needed.
 #
 # Usage:
-#   sudo ./scripts/setup-registry.sh [REGISTRY_IP] [NODE_PORT]
+#   sudo ./scripts/setup-registry.sh [NODE_PORT] [REGISTRY_IP...]
 #
-# REGISTRY_IP defaults to 192.168.1.110, NODE_PORT defaults to 32000.
+# NODE_PORT defaults to 32000.
+# REGISTRY_IPs default to both the LAN IP (192.168.1.110) and the
+# Tailscale IP (100.69.236.43) so the registry is reachable from either network.
+# Pass one or more IPs explicitly to override the defaults.
 
 set -euo pipefail
 
 # ── Config ────────────────────────────────────────────────────────────────────
-REGISTRY_IP="${1:-192.168.1.110}"
-NODE_PORT="${2:-32000}"
-REGISTRY_HOST="${REGISTRY_IP}:${NODE_PORT}"
+NODE_PORT="${1:-32000}"
+shift || true
+if [[ $# -gt 0 ]]; then
+  REGISTRY_IPS=("$@")
+else
+  REGISTRY_IPS=(192.168.1.110 100.69.236.43)
+fi
 K3S_REGISTRIES="/etc/rancher/k3s/registries.yaml"
 K3S_CONFIG="/etc/rancher/k3s/config.yaml"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 K8S_DIR="$(cd "${SCRIPT_DIR}/../k8s" && pwd)"
+
+# Primary host used for log messages and pod deploy
+PRIMARY_HOST="${REGISTRY_IPS[0]}:${NODE_PORT}"
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 log()  { echo "[setup-registry] $*"; }
@@ -83,36 +93,42 @@ deploy_registry_pod() {
   kubectl rollout status deployment/registry -n registry-system --timeout=120s
 
   log "Registry deployed. NodePort: ${NODE_PORT}"
-  log "Push images with:  docker push ${REGISTRY_HOST}/<image>:<tag>"
+  log "Push images with:  docker push ${PRIMARY_HOST}/<image>:<tag>"
 }
 
 # ── registries.yaml ───────────────────────────────────────────────────────────
 configure_registries_yaml() {
-  log "Configuring ${K3S_REGISTRIES} for insecure registry at ${REGISTRY_HOST}..."
-
   mkdir -p "$(dirname "${K3S_REGISTRIES}")"
 
-  # If the entry already exists, skip to avoid duplicates.
-  if [[ -f "${K3S_REGISTRIES}" ]] && grep -q "${REGISTRY_HOST}" "${K3S_REGISTRIES}"; then
-    log "${REGISTRY_HOST} already present in ${K3S_REGISTRIES}, skipping."
-    return
-  fi
+  local any_added=false
+  for ip in "${REGISTRY_IPS[@]}"; do
+    local host="${ip}:${NODE_PORT}"
+    log "Configuring ${K3S_REGISTRIES} for insecure registry at ${host}..."
 
-  # Append mirror config (preserves any existing entries).
-  cat >> "${K3S_REGISTRIES}" <<EOF
+    # If the entry already exists, skip to avoid duplicates.
+    if [[ -f "${K3S_REGISTRIES}" ]] && grep -q "${host}" "${K3S_REGISTRIES}"; then
+      log "${host} already present in ${K3S_REGISTRIES}, skipping."
+      continue
+    fi
+
+    # Append mirror config (preserves any existing entries).
+    cat >> "${K3S_REGISTRIES}" <<EOF
 
 mirrors:
-  "${REGISTRY_HOST}":
+  "${host}":
     endpoint:
-      - "http://${REGISTRY_HOST}"
+      - "http://${host}"
 configs:
-  "${REGISTRY_HOST}":
+  "${host}":
     tls:
       insecure_skip_verify: true
 EOF
 
-  log "${K3S_REGISTRIES} updated."
-  K3S_NEEDS_RESTART=true
+    log "${K3S_REGISTRIES} updated for ${host}."
+    any_added=true
+  done
+
+  [[ "${any_added}" == "true" ]] && K3S_NEEDS_RESTART=true
 }
 
 # ── k3s restart ───────────────────────────────────────────────────────────────
@@ -165,9 +181,11 @@ main() {
 
   echo ""
   log "Done. Summary:"
-  log "  Registry address : ${REGISTRY_HOST}"
-  log "  Push example     : docker push ${REGISTRY_HOST}/sample-grpc:latest"
-  log "  Pod image ref    : image: ${REGISTRY_HOST}/sample-grpc:latest"
+  for ip in "${REGISTRY_IPS[@]}"; do
+    log "  Registry address : ${ip}:${NODE_PORT}"
+  done
+  log "  Push example     : docker push ${PRIMARY_HOST}/sample-grpc:latest"
+  log "  Pod image ref    : image: ${PRIMARY_HOST}/sample-grpc:latest"
   echo ""
 
   if [[ "${ROLE}" == "server" ]]; then

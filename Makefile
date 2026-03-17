@@ -1,7 +1,12 @@
-BINARY      := server
-# Registry NodePort — override with: make IMAGE=<registry>/sample-grpc
-IMAGE       := 192.168.1.110:32000/sample-grpc
-WEB_IMAGE   := 192.168.1.110:32000/sample-grpc-web
+BINARY         := server
+# LAN registry address — used in deployment.yaml so k8s nodes pull over LAN
+REGISTRY_LAN   := 192.168.1.110:32000
+# Tailscale registry address — used for pushing from the dev machine
+REGISTRY_TS    := 100.69.236.43:32000
+IMAGE          := $(REGISTRY_LAN)/sample-grpc
+PUSH_IMAGE     := $(REGISTRY_TS)/sample-grpc
+WEB_IMAGE      := $(REGISTRY_LAN)/sample-grpc-web
+WEB_PUSH_IMAGE := $(REGISTRY_TS)/sample-grpc-web
 PORT        := 50051
 # gRPC NodePort for external tooling (grpcurl, loadtest) — override with: make GRPC_ADDR=<host>:<port>
 GRPC_ADDR   := 192.168.1.110:30051
@@ -33,8 +38,8 @@ test-all:
 
 docker-build:
 	docker buildx build --platform linux/amd64,linux/arm64 \
-	    -t $(IMAGE):$(VERSION)-$(GIT_SHA) \
-	    -t $(IMAGE):latest \
+	    -t $(PUSH_IMAGE):$(VERSION)-$(GIT_SHA) \
+	    -t $(PUSH_IMAGE):latest \
 	    --build-arg VERSION=$(VERSION)-$(GIT_SHA) \
 	    --push .
 	sed -i '' "s|$(IMAGE):.*|$(IMAGE):$(VERSION)-$(GIT_SHA)|" k8s/deployment.yaml
@@ -72,8 +77,8 @@ db-cleanup:
 
 web-docker-build:
 	docker buildx build --platform linux/amd64,linux/arm64 \
-	    -t $(WEB_IMAGE):$(VERSION)-$(GIT_SHA) \
-	    -t $(WEB_IMAGE):latest \
+	    -t $(WEB_PUSH_IMAGE):$(VERSION)-$(GIT_SHA) \
+	    -t $(WEB_PUSH_IMAGE):latest \
 	    --push \
 	    web/
 	sed -i '' "s|$(WEB_IMAGE):.*|$(WEB_IMAGE):$(VERSION)-$(GIT_SHA)|" k8s/web-deployment.yaml
