@@ -10,6 +10,7 @@ body {
   justify-content: center;
   align-items: center;
   min-height: 100vh;
+  position: relative;
 }
 
 .app {
@@ -17,6 +18,18 @@ body {
   max-width: 480px;
   width: 100%;
   padding: 2rem;
+}
+
+.github-link {
+  position: absolute;
+  top: 1.25rem;
+  right: 1.25rem;
+  color: #888;
+  transition: color 0.2s;
+}
+
+.github-link:hover {
+  color: #e0e0e0;
 }
 
 h1 {
