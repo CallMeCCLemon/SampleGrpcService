@@ -2,6 +2,17 @@
 
 All manifests for the `grpc-demo` namespace on the self-hosted k3s cluster.
 
+## Project Configuration
+
+Before applying any manifests, all project-specific values (namespace, image names, IPs, ports, domain) are controlled by `project.yaml` in the repo root. The `k8s/*.yaml` files are **generated** from `k8s/templates/` — never edit them directly.
+
+```bash
+# After changing project.yaml:
+make generate-k8s   # renders k8s/templates/*.yaml -> k8s/*.yaml
+```
+
+Requires `envsubst`: `brew install gettext` on macOS.
+
 ## Cluster Overview
 
 ```
@@ -9,7 +20,7 @@ k3s Cluster
 ├── grpc-demo (namespace)
 │   ├── greeter              Deployment + NodePort :30051  Go gRPC server
 │   ├── greeter-web          Deployment + NodePort :30090  React/Nginx web app
-│   ├── grpc-demo-service    ClusterIP :80                 Cloudflare tunnel target
+│   ├── greeter-service      ClusterIP :80                 Cloudflare tunnel target
 │   ├── greeter-db           CNPG Cluster                  PostgreSQL (1 instance)
 │   └── cloudflared          Deployment (2 replicas)       Cloudflare tunnel agent
 │
@@ -28,22 +39,31 @@ k3s Cluster
 
 | File | Description |
 |------|-------------|
-| `deployment.yaml` | `greeter` gRPC service (Deployment + NodePort) |
+| `templates/*.yaml` | Parameterized source templates — edit these (or project.yaml), not the generated files |
+| `deployment.yaml` | `greeter` gRPC service (Namespace + Deployment + NodePort) |
 | `web-deployment.yaml` | `greeter-web` React app (Deployment + NodePort + ClusterIP for tunnel) |
-| `cloudflared.yaml` | Cloudflare tunnel agent (reads token from `sample-grpc-demo-tunnel-creds` secret) |
-| `kong.yaml` | Kong `KongPlugin` (grpc-gateway) + `Ingress` routing `/hello` and `/goodbye` |
+| `cloudflared.yaml` | Cloudflare tunnel agent (reads token from secret named in project.yaml) |
+| `kong.yaml` | Kong `KongPlugin` (grpc-gateway) + `Ingress` routing all traffic through Kong |
 | `kong-values.yaml` | Helm values for Kong Ingress Controller (NodePort, proto volume mounts) |
-| `postgres.yaml` | CNPG `Cluster` resource (`greeter-db`, 1 instance, 5Gi) |
-| `registry.yaml` | Local `registry:2` pod + NodePort :32000 + PVC |
+| `postgres.yaml` | CNPG `Cluster` resource (1 instance, 5Gi) |
+| `registry.yaml` | Local `registry:2` pod + NodePort + PVC |
 | `secrets.example.yaml` | Template for the Cloudflare tunnel secret — copy and fill in token |
 | `secrets.yaml` | **Gitignored** — real secret, never commit |
 
 ## First-Time Setup
 
+### 0. Configure project.yaml
+
+Before anything else, edit `project.yaml` in the repo root with your node IPs, desired namespace, image names, and NodePorts. Then generate the manifests:
+
+```bash
+make generate-k8s
+```
+
 ### 1. Namespace
 
 ```bash
-kubectl apply -f k8s/deployment.yaml   # also creates the grpc-demo namespace
+kubectl apply -f k8s/deployment.yaml   # also creates the namespace
 ```
 
 ### 2. PostgreSQL (CNPG)
@@ -56,14 +76,17 @@ kubectl apply -f k8s/deployment.yaml   # also creates the grpc-demo namespace
 kubectl apply -f k8s/postgres.yaml
 ```
 
-The operator creates the `greeter-db-app` secret automatically once the cluster is ready. The `DATABASE_URL` env var in the `greeter` deployment reads from this secret.
+The operator creates a secret named `<project_name>-db-app` automatically once the cluster is ready. The `DATABASE_URL` env var in the backend deployment reads from this secret.
 
 ### 3. Local Container Registry
 
 ```bash
-# Run on EVERY k3s node (server + agents):
+# Run on EVERY k3s node (server + agents).
+# Defaults to the IPs set in project.yaml (node_ip_lan and node_ip_tailscale).
 sudo ./scripts/setup-registry.sh
-# Configures both LAN (192.168.1.110:32000) and Tailscale (100.69.236.43:32000)
+
+# Or pass IPs explicitly:
+sudo ./scripts/setup-registry.sh 32000 192.168.x.x 100.x.x.x
 ```
 
 ### 4. Kong API Gateway
@@ -84,7 +107,7 @@ make kong-deploy
 ### 5. Cloudflare Tunnel
 
 ```bash
-# Create the tunnel token secret (see secrets.example.yaml)
+# Create the tunnel token secret
 cp k8s/secrets.example.yaml k8s/secrets.yaml
 # Edit k8s/secrets.yaml — replace <your-cloudflare-tunnel-token>
 kubectl apply -f k8s/secrets.yaml
@@ -93,8 +116,13 @@ kubectl apply -f k8s/secrets.yaml
 kubectl apply -f k8s/cloudflared.yaml
 ```
 
-> Get your tunnel token from the [Cloudflare Zero Trust dashboard](https://one.dash.cloudflare.com) →
-> Networks → Tunnels → your tunnel → Configure → Install connector.
+In the [Cloudflare Zero Trust dashboard](https://one.dash.cloudflare.com) → Networks → Tunnels → your tunnel → Public Hostname, set the target to:
+```
+http://<project_name>-service.<namespace>:80
+```
+(e.g. `http://greeter-service.grpc-demo:80`)
+
+> Get your tunnel token from the dashboard → Networks → Tunnels → your tunnel → Configure → Install connector.
 
 ### 6. Deploy the Applications
 
@@ -107,7 +135,7 @@ make web-docker-build && make web-deploy  # React web app
 
 ### Protobuf changes
 
-After editing `proto/greeter.proto`, regenerate all clients and redeploy:
+After editing `proto/<project_name>.proto`, regenerate all clients and redeploy:
 
 ```bash
 # Regenerate stubs
@@ -123,17 +151,12 @@ make test
 # Rebuild proto configmaps so Kong picks up the new definitions
 make kong-deploy
 
+# Restart Kong to pick up the new proto ConfigMap mount
+kubectl rollout restart deployment -n kong
+
 # Rebuild and redeploy both services
 make docker-build    && make deploy
 make web-docker-build && make web-deploy
-```
-
-### Updating Kong after proto changes
-
-Kong's `grpc-gateway` plugin reads the proto file from a ConfigMap mounted into the pod. `make kong-deploy` recreates those ConfigMaps and re-applies the ingress rules. After running it, restart the Kong pod to pick up the new mount:
-
-```bash
-kubectl rollout restart deployment -n kong
 ```
 
 ### Database cleanup
@@ -151,18 +174,20 @@ make loadtest   # 20 concurrent gRPC connections for 30s against GRPC_ADDR
 
 ## Networking
 
-```
-External / Tailscale
-  100.69.236.43:30080  →  Kong proxy      (HTTP/JSON API)
-  100.69.236.43:30051  →  greeter gRPC    (direct gRPC)
-  100.69.236.43:30090  →  greeter-web     (React UI)
-  100.69.236.43:32000  →  registry        (image push from dev machine)
+All addresses below reflect the defaults in `project.yaml`. Update that file to change them.
 
-LAN (192.168.1.110)
-  Same NodePorts above, plus k8s node pulls images from :32000 over LAN
+```
+External / Tailscale (node_ip_tailscale)
+  <tailscale-ip>:30080  →  Kong proxy      (HTTP/JSON API)
+  <tailscale-ip>:30051  →  greeter gRPC    (direct gRPC)
+  <tailscale-ip>:30090  →  greeter-web     (React UI)
+  <tailscale-ip>:32000  →  registry        (image push from dev machine)
+
+LAN (node_ip_lan)
+  Same NodePorts above, plus k8s nodes pull images from :32000 over LAN
 
 Public
-  https://grpc-demo.latentlab.cc  →  Cloudflare tunnel → grpc-demo-service:80
+  https://<public_domain>  →  Cloudflare tunnel → <project_name>-service.<namespace>:80
 ```
 
 Inside the cluster, services communicate using k8s DNS (no IPs):
@@ -170,5 +195,5 @@ Inside the cluster, services communicate using k8s DNS (no IPs):
 | From | To | Address |
 |------|----|---------|
 | `greeter-web` Nginx | Kong | `kong-gateway-proxy.kong:80` |
-| `cloudflared` | Web app | `grpc-demo-service.grpc-demo:80` |
+| `cloudflared` | Web app | `greeter-service.grpc-demo:80` |
 | `greeter` | PostgreSQL | `greeter-db-rw.grpc-demo:5432` (from CNPG secret) |

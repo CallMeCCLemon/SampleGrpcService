@@ -13,10 +13,11 @@ React + TypeScript single-page application that demonstrates calling the Greeter
 │               ▼                                             │
 │          Vite dev server                                    │
 │          (HMR enabled)                                      │
-│               │  /hello, /goodbye                           │
+│               │  POST /api/hello, /api/goodbye              │
+│               │  (strips /api prefix before forwarding)     │
 │               ▼                                             │
 │          Kong NodePort  ←─ KONG_URL in .env.development     │
-│          (100.69.236.43:30080)                              │
+│          receives POST /hello, /goodbye                     │
 └─────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────┐
@@ -28,18 +29,25 @@ React + TypeScript single-page application that demonstrates calling the Greeter
 │          Cloudflare Tunnel                                  │
 │               │                                             │
 │               ▼                                             │
-│          grpc-demo-service (ClusterIP :80)                  │
+│          greeter-service (ClusterIP :80)                    │
 │               │                                             │
 │               ▼                                             │
 │          greeter-web pod (Nginx)                            │
-│          ├── GET /          →  React SPA (static files)     │
-│          └── POST /hello        ┐                           │
-│               POST /goodbye     │  proxy_pass               │
+│          ├── GET /           →  React SPA (static files)    │
+│          └── POST /api/*     →  strips /api prefix          │
+│                                 proxy_pass                  │
 │                                 ▼                           │
 │                    kong-gateway-proxy.kong:80               │
+│                    receives POST /hello, /goodbye           │
 │                    (k8s internal DNS, no hard-coded IPs)    │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+## API Prefix Convention
+
+All API calls use an `/api/` prefix. Nginx and the Vite dev proxy both strip this prefix before forwarding to Kong, so Kong always receives the paths defined in the proto (`/hello`, `/goodbye`).
+
+This keeps React Router client-side routes (`/about`, `/profile`, etc.) from conflicting with the Kong proxy — anything without the `/api/` prefix is served by Nginx as the SPA.
 
 ## Local Development
 
@@ -48,7 +56,7 @@ npm install
 npm run dev
 ```
 
-The Vite dev server proxies `/hello` and `/goodbye` to Kong automatically — no CORS issues. The target URL is read from `KONG_URL` in `.env.development`.
+The Vite dev server proxies all `/api/*` requests to Kong, stripping the `/api` prefix. The target URL is read from `KONG_URL` in `.env.development`.
 
 To override for your machine without changing committed files, create:
 
@@ -99,7 +107,7 @@ make web-docker-build   # builds multi-platform image, pushes, pins tag in k8s/w
 make web-deploy         # kubectl apply -f k8s/web-deployment.yaml
 ```
 
-The Docker build runs `tsc -b && vite build` — a type error from a proto mismatch will fail the build.
+The Docker build passes `VITE_GITHUB_REPO` as a build arg (sourced from `project.yaml` via the Makefile) and runs `tsc -b && vite build` — a type error from a proto mismatch will fail the build.
 
 ## Project Structure
 
@@ -112,10 +120,11 @@ web/
 │   └── generated/            # Auto-generated from proto — DO NOT EDIT BY HAND
 │       ├── greeter.ts        # Greeter service types
 │       └── google/           # Transitive google proto types
-├── nginx.conf                # Nginx: serves SPA + proxies /hello, /goodbye to Kong
+├── nginx.conf                # Nginx: serves SPA + proxies /api/* to Kong (strips prefix)
 ├── Dockerfile                # Multi-stage: Node build → Nginx
+├── .env                      # Base env: VITE_GITHUB_REPO (auto-updated by make generate-k8s)
 ├── .env.development          # Dev Kong proxy URL (override via .env.development.local)
-├── vite.config.ts            # Vite: HMR + Kong dev proxy
+├── vite.config.ts            # Vite: HMR + /api/* Kong dev proxy (strips /api prefix)
 ├── tsconfig.app.json         # TypeScript: strict mode, erasableSyntaxOnly
 └── package.json
 ```
