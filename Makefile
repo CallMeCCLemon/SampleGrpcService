@@ -1,6 +1,7 @@
 BINARY      := server
 # Registry NodePort — override with: make IMAGE=<registry>/sample-grpc
 IMAGE       := 192.168.1.110:32000/sample-grpc
+WEB_IMAGE   := 192.168.1.110:32000/sample-grpc-web
 PORT        := 50051
 # gRPC NodePort for external tooling (grpcurl, loadtest) — override with: make GRPC_ADDR=<host>:<port>
 GRPC_ADDR   := 192.168.1.110:30051
@@ -9,7 +10,7 @@ PB_DIR      := pb
 VERSION     := $(shell cat VERSION)
 GIT_SHA     := $(shell git rev-parse --short HEAD)
 
-.PHONY: all build test test-all proto docker-build docker-run deploy clean loadtest db-cleanup kong-deploy web-proto
+.PHONY: all build test test-all proto docker-build docker-run deploy clean loadtest db-cleanup kong-deploy web-proto web-docker-build web-deploy
 
 all: proto build
 
@@ -68,6 +69,17 @@ db-cleanup:
 	kubectl exec -n grpc-demo \
 	    $$(kubectl get pod -n grpc-demo -l cnpg.io/cluster=greeter-db -o jsonpath='{.items[0].metadata.name}') \
 	    -- psql -U greeter -c "TRUNCATE TABLE hello_requests, goodbye_requests;"
+
+web-docker-build:
+	docker buildx build --platform linux/amd64,linux/arm64 \
+	    -t $(WEB_IMAGE):$(VERSION)-$(GIT_SHA) \
+	    -t $(WEB_IMAGE):latest \
+	    --push \
+	    web/
+	sed -i '' "s|$(WEB_IMAGE):.*|$(WEB_IMAGE):$(VERSION)-$(GIT_SHA)|" k8s/web-deployment.yaml
+
+web-deploy:
+	kubectl apply -f k8s/web-deployment.yaml
 
 web-proto:
 	mkdir -p web/src/generated
