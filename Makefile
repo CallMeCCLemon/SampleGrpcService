@@ -1,6 +1,8 @@
 BINARY      := server
+# Registry NodePort — override with: make IMAGE=<registry>/sample-grpc
 IMAGE       := 192.168.1.110:32000/sample-grpc
 PORT        := 50051
+# gRPC NodePort for external tooling (grpcurl, loadtest) — override with: make GRPC_ADDR=<host>:<port>
 GRPC_ADDR   := 192.168.1.110:30051
 PROTO_DIR   := proto
 PB_DIR      := pb
