@@ -21,7 +21,7 @@ React + TypeScript single-page application that demonstrates calling the Greeter
 └─────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────┐
-│  Production (k3s cluster, grpc-demo namespace)              │
+│  Production (Kubernetes cluster, grpc-demo namespace)       │
 │                                                             │
 │  Browser → grpc-demo.latentlab.cc                           │
 │               │ HTTPS                                       │

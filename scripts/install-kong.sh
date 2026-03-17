@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One-time script to install Kong Ingress Controller on k3s via Helm.
+# One-time script to install Kong Ingress Controller on Kubernetes via Helm.
 # Run from the repo root: ./scripts/install-kong.sh
 set -euo pipefail
 

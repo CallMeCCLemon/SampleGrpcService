@@ -1,6 +1,6 @@
 # Kubernetes Infrastructure
 
-All manifests for the `grpc-demo` namespace on the self-hosted k3s cluster.
+All manifests for the `grpc-demo` namespace on the self-hosted Kubernetes cluster.
 
 ## Project Configuration
 
@@ -16,7 +16,7 @@ Requires `envsubst`: `brew install gettext` on macOS.
 ## Cluster Overview
 
 ```
-k3s Cluster
+Kubernetes Cluster
 ├── grpc-demo (namespace)
 │   ├── greeter              Deployment + NodePort :30051  Go gRPC server
 │   ├── greeter-web          Deployment + NodePort :30090  React/Nginx web app
@@ -81,7 +81,7 @@ The operator creates a secret named `<project_name>-db-app` automatically once t
 ### 3. Local Container Registry
 
 ```bash
-# Run on EVERY k3s node (server + agents).
+# Run on EVERY node (server + agents).
 # Defaults to the IPs set in project.yaml (node_ip_lan and node_ip_tailscale).
 sudo ./scripts/setup-registry.sh
 

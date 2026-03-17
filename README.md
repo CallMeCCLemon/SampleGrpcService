@@ -1,6 +1,6 @@
 # SampleGrpcProject
 
-A testbed — and reusable template — for wiring together a Go-based gRPC service, a PostgreSQL database, an HTTP-to-gRPC gateway using Kong, and a React web front-end, all running on a self-hosted k3s cluster exposed via a Cloudflare tunnel.
+A testbed — and reusable template — for wiring together a Go-based gRPC service, a PostgreSQL database, an HTTP-to-gRPC gateway using Kong, and a React web front-end, all running on a self-hosted Kubernetes cluster exposed via a Cloudflare tunnel.
 
 ## Architecture
 

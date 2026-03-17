@@ -56,7 +56,13 @@
       "Bash(npx tsc:*)",
       "Bash(make web-docker-build:*)",
       "Bash(make web-proto:*)",
-      "Bash(make web-deploy:*)"
+      "Bash(make web-deploy:*)",
+      "Bash(grep -rn \"grpc-demo\\\\|SampleGrpc\\\\|sample-grpc\\\\|greeter\\\\|latentlab\\\\|192\\\\.168\\\\.1\\\\.110\\\\|100\\\\.69\\\\.236\\\\.43\" \\\\\n  /Users/thomaslittlejohn/GolandProjects/SampleGrpcProject \\\\\n  --include=\"*.yaml\" --include=\"*.yml\" --include=\"*.go\" \\\\\n  --include=\"Makefile\" --include=\"*.sh\" --include=\"*.conf\" \\\\\n  --include=\"*.ts\" --include=\"*.tsx\" --include=\"*.json\" \\\\\n  -l 2>/dev/null | grep -v node_modules | grep -v \".git\")",
+      "Bash(make generate-k8s:*)",
+      "Bash(git -C /Users/thomaslittlejohn/GolandProjects/SampleGrpcProject diff --stat)",
+      "Bash(git -C /Users/thomaslittlejohn/GolandProjects/SampleGrpcProject status --short)",
+      "Bash(kubectl run:*)",
+      "Bash(ls pb/ && git check-ignore -v pb/greeter.pb.go 2>/dev/null || echo \"not ignored\")"
     ]
   }
 }

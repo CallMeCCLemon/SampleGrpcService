@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # install-cnpg.sh
-# Installs the CloudNative-PG operator onto the k3s cluster via Helm.
+# Installs the CloudNative-PG operator onto the Kubernetes cluster via Helm.
 #
 # Review this script before running — it modifies cluster-level resources.
 #
@@ -9,7 +9,7 @@
 #
 # Prerequisites:
 #   - helm >= 3
-#   - kubectl configured to point at your k3s cluster
+#   - kubectl configured to point at your Kubernetes cluster
 
 set -euo pipefail
 
