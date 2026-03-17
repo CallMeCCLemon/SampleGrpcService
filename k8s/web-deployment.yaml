@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
         - name: greeter-web
-          image: 192.168.1.110:32000/sample-grpc-web:0.2.2-e37868e
+          image: 192.168.1.110:32000/sample-grpc-web:0.2.2-ed83e3c
           imagePullPolicy: Always
           ports:
             - name: http
