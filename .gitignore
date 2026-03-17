@@ -1,3 +1,11 @@
+# Executables
 server
+loadtest
+
+# IDE Files
 .idea
+
+# Build deps
 web/node_modules
+
+secrets.yaml

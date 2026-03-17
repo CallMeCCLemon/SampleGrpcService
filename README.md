@@ -7,20 +7,20 @@ A testbed for exploring how to wire together a Go-based gRPC service, a PostgreS
 ```
                         ┌─────────────────────────────────────────┐
                         │           k3s Cluster (grpc-demo ns)    │
-                        │                                          │
+                        │                                         │
 Browser / curl          │  ┌──────────────┐    ┌───────────────┐  │
-    │                   │  │  greeter-web  │    │    greeter    │  │
-    │  HTTPS             │  │  (Nginx)      │    │  (Go gRPC)   │  │
+    │                   │  │  greeter-web │    │    greeter    │  │
+    │  HTTPS            │  │  (Nginx)     │    │  (Go gRPC)    │  │
     ▼                   │  │              │    │               │  │
 ┌──────────────┐        │  │  Serves SPA  │    │  SayHello     │  │
 │  Cloudflare  │        │  │  Proxies API │───▶│  SayGoodbye   │  │
 │  Tunnel      │───────▶│  └──────┬───────┘    └──────┬────────┘  │
-└──────────────┘        │         │                    │           │
+└──────────────┘        │         │                   │           │
     │                   │  ┌──────▼───────┐    ┌──────▼────────┐  │
     │  HTTP (NodePort)  │  │     Kong     │    │  PostgreSQL   │  │
     ▼                   │  │  API Gateway │    │  (CNPG)       │  │
 ┌──────────────┐        │  │  HTTP/JSON   │    │               │  │
-│  LAN clients │───────▶│  │  ↔ gRPC     │    │  hello_reqs   │  │
+│  LAN clients │───────▶│  │  ↔ gRPC      │    │  hello_reqs   │  │
 └──────────────┘        │  └──────────────┘    │  goodbye_reqs │  │
                         │                      └───────────────┘  │
                         └─────────────────────────────────────────┘
