@@ -91,7 +91,7 @@ web-proto:
 	protoc \
 	    --plugin=protoc-gen-ts_proto=web/node_modules/.bin/protoc-gen-ts_proto \
 	    --ts_proto_out=web/src/generated \
-	    --ts_proto_opt=esModuleInterop=true,outputServices=fetch-client,fetchType=native \
+	    --ts_proto_opt=esModuleInterop=true,outputServices=fetch-client,fetchType=native,constEnums=false \
 	    -I $(PROTO_DIR) -I third_party \
 	    $(PROTO_DIR)/*.proto
 

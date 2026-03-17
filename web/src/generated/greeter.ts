@@ -4,7 +4,6 @@
 //   protoc               v6.30.2
 // source: greeter.proto
 
-
 /* eslint-disable */
 import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire";
 
