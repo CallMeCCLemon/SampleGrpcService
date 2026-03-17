@@ -13,11 +13,13 @@ export default defineConfig(({ mode }) => {
     server: {
       hmr: true,
       proxy: {
-        // Proxy any path that starts with a lowercase letter and contains no dots.
-        // This catches all Kong API endpoints (e.g. /hello, /goodbye, /any-future-route)
-        // while leaving Vite internals (/@vite/...), static assets (/assets/main.js,
-        // /favicon.svg), and the root (/) unproxied.
-        '^/[a-z][^.]*$': kongUrl,
+        // Proxy all /api/* requests to Kong, stripping the /api prefix.
+        // e.g. POST /api/hello -> Kong receives POST /hello
+        // Mirrors the nginx.conf convention so dev and prod behave identically.
+        '/api': {
+          target: kongUrl,
+          rewrite: (path) => path.replace(/^\/api/, ''),
+        },
       },
     },
   }

@@ -70,14 +70,14 @@ function App() {
           placeholder="Enter a name"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && call('/hello')}
+          onKeyDown={(e) => e.key === 'Enter' && call('/api/hello')}
           disabled={loading}
         />
         <div className="buttons">
-          <button onClick={() => call('/hello')} disabled={loading || !name.trim()}>
+          <button onClick={() => call('/api/hello')} disabled={loading || !name.trim()}>
             Say Hello
           </button>
-          <button onClick={() => call('/goodbye')} disabled={loading || !name.trim()}>
+          <button onClick={() => call('/api/goodbye')} disabled={loading || !name.trim()}>
             Say Goodbye
           </button>
         </div>
