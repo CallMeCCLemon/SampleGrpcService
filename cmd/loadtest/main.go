@@ -17,7 +17,7 @@ import (
 	"SampleGrpcProject/pb"
 )
 
-var names = []string{"Alice", "Bob", "Charlie", "Dave", "Eve", "Frank", "Grace", "Heidi"}
+var messages = []string{"hello", "world", "foo", "bar", "baz", "ping", "test", "echo"}
 
 func main() {
 	addr := flag.String("addr", "192.168.1.110:30051", "gRPC server address")
@@ -65,15 +65,11 @@ func main() {
 				default:
 				}
 
-				name := names[rand.Intn(len(names))]
+				msg := messages[rand.Intn(len(messages))]
 				reqStart := time.Now()
 
 				var reqErr error
-				if rand.Intn(2) == 0 {
-					_, reqErr = client.SayHello(ctx, &pb.HelloRequest{Name: name})
-				} else {
-					_, reqErr = client.SayGoodbye(ctx, &pb.GoodbyeRequest{Name: name})
-				}
+				_, reqErr = client.Echo(ctx, &pb.EchoRequest{Message: msg})
 
 				ns := time.Since(reqStart).Nanoseconds()
 				totalReqs.Add(1)

@@ -10,18 +10,9 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-// HelloRequest represents a row in the hello_requests table.
-type HelloRequest struct {
+// EchoRequest represents a row in the echo_requests table.
+type EchoRequest struct {
 	ID        uint      `gorm:"primarykey;autoIncrement"`
-	Name      string    `gorm:"not null"`
-	Message   string    `gorm:"not null"`
-	CreatedAt time.Time `gorm:"not null;autoCreateTime"`
-}
-
-// GoodbyeRequest represents a row in the goodbye_requests table.
-type GoodbyeRequest struct {
-	ID        uint      `gorm:"primarykey;autoIncrement"`
-	Name      string    `gorm:"not null"`
 	Message   string    `gorm:"not null"`
 	CreatedAt time.Time `gorm:"not null;autoCreateTime"`
 }
@@ -40,7 +31,7 @@ func New(ctx context.Context, connStr string) (*DB, error) {
 		return nil, fmt.Errorf("open db: %w", err)
 	}
 
-	if err := orm.WithContext(ctx).AutoMigrate(&HelloRequest{}, &GoodbyeRequest{}); err != nil {
+	if err := orm.WithContext(ctx).AutoMigrate(&EchoRequest{}); err != nil {
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
 
@@ -54,12 +45,7 @@ func (d *DB) Close() {
 	}
 }
 
-// WriteHelloRequest persists a SayHello request and its response message.
-func (d *DB) WriteHelloRequest(ctx context.Context, name, message string) error {
-	return d.orm.WithContext(ctx).Create(&HelloRequest{Name: name, Message: message}).Error
-}
-
-// WriteGoodbyeRequest persists a SayGoodbye request and its response message.
-func (d *DB) WriteGoodbyeRequest(ctx context.Context, name, message string) error {
-	return d.orm.WithContext(ctx).Create(&GoodbyeRequest{Name: name, Message: message}).Error
+// WriteEchoRequest persists an Echo request message.
+func (d *DB) WriteEchoRequest(ctx context.Context, message string) error {
+	return d.orm.WithContext(ctx).Create(&EchoRequest{Message: message}).Error
 }

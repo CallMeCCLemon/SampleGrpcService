@@ -27,8 +27,7 @@ var version = "dev"
 
 // dbWriter is the subset of db.DB the server needs, allowing a noop in tests.
 type dbWriter interface {
-	WriteHelloRequest(ctx context.Context, name, message string) error
-	WriteGoodbyeRequest(ctx context.Context, name, message string) error
+	WriteEchoRequest(ctx context.Context, message string) error
 }
 
 type server struct {
@@ -36,24 +35,13 @@ type server struct {
 	db dbWriter
 }
 
-func (s *server) SayHello(ctx context.Context, req *pb.HelloRequest) (*pb.HelloReply, error) {
-	if req.Name == "" {
-		slog.Warn("SayHello called with empty name")
+func (s *server) Echo(ctx context.Context, req *pb.EchoRequest) (*pb.EchoReply, error) {
+	if req.Message == "" {
+		slog.Warn("Echo called with empty message")
 	}
-	reply := &pb.HelloReply{Message: "Hello, " + req.Name + "!"}
-	if err := s.db.WriteHelloRequest(ctx, req.Name, reply.Message); err != nil {
-		slog.Error("failed to write hello request to db", "error", err)
-	}
-	return reply, nil
-}
-
-func (s *server) SayGoodbye(ctx context.Context, req *pb.GoodbyeRequest) (*pb.GoodbyeReply, error) {
-	if req.Name == "" {
-		slog.Warn("SayGoodbye called with empty name")
-	}
-	reply := &pb.GoodbyeReply{Message: "Goodbye, " + req.Name + "!"}
-	if err := s.db.WriteGoodbyeRequest(ctx, req.Name, reply.Message); err != nil {
-		slog.Error("failed to write goodbye request to db", "error", err)
+	reply := &pb.EchoReply{Message: req.Message}
+	if err := s.db.WriteEchoRequest(ctx, req.Message); err != nil {
+		slog.Error("failed to write echo request to db", "error", err)
 	}
 	return reply, nil
 }

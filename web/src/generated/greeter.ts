@@ -9,96 +9,30 @@ import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire";
 
 export const protobufPackage = "greeter";
 
-export interface HelloRequest {
-  name: string;
-}
-
-export interface HelloReply {
+export interface EchoRequest {
   message: string;
 }
 
-export interface GoodbyeRequest {
-  name: string;
-}
-
-export interface GoodbyeReply {
+export interface EchoReply {
   message: string;
 }
 
-function createBaseHelloRequest(): HelloRequest {
-  return { name: "" };
-}
-
-export const HelloRequest: MessageFns<HelloRequest> = {
-  encode(message: HelloRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.name !== "") {
-      writer.uint32(10).string(message.name);
-    }
-    return writer;
-  },
-
-  decode(input: BinaryReader | Uint8Array, length?: number): HelloRequest {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseHelloRequest();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 10) {
-            break;
-          }
-
-          message.name = reader.string();
-          continue;
-        }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
-
-  fromJSON(object: any): HelloRequest {
-    return { name: isSet(object.name) ? globalThis.String(object.name) : "" };
-  },
-
-  toJSON(message: HelloRequest): unknown {
-    const obj: any = {};
-    if (message.name !== "") {
-      obj.name = message.name;
-    }
-    return obj;
-  },
-
-  create<I extends Exact<DeepPartial<HelloRequest>, I>>(base?: I): HelloRequest {
-    return HelloRequest.fromPartial(base ?? ({} as any));
-  },
-  fromPartial<I extends Exact<DeepPartial<HelloRequest>, I>>(object: I): HelloRequest {
-    const message = createBaseHelloRequest();
-    message.name = object.name ?? "";
-    return message;
-  },
-};
-
-function createBaseHelloReply(): HelloReply {
+function createBaseEchoRequest(): EchoRequest {
   return { message: "" };
 }
 
-export const HelloReply: MessageFns<HelloReply> = {
-  encode(message: HelloReply, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+export const EchoRequest: MessageFns<EchoRequest> = {
+  encode(message: EchoRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
     if (message.message !== "") {
       writer.uint32(10).string(message.message);
     }
     return writer;
   },
 
-  decode(input: BinaryReader | Uint8Array, length?: number): HelloReply {
+  decode(input: BinaryReader | Uint8Array, length?: number): EchoRequest {
     const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseHelloReply();
+    const message = createBaseEchoRequest();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -119,11 +53,11 @@ export const HelloReply: MessageFns<HelloReply> = {
     return message;
   },
 
-  fromJSON(object: any): HelloReply {
+  fromJSON(object: any): EchoRequest {
     return { message: isSet(object.message) ? globalThis.String(object.message) : "" };
   },
 
-  toJSON(message: HelloReply): unknown {
+  toJSON(message: EchoRequest): unknown {
     const obj: any = {};
     if (message.message !== "") {
       obj.message = message.message;
@@ -131,90 +65,32 @@ export const HelloReply: MessageFns<HelloReply> = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<HelloReply>, I>>(base?: I): HelloReply {
-    return HelloReply.fromPartial(base ?? ({} as any));
+  create<I extends Exact<DeepPartial<EchoRequest>, I>>(base?: I): EchoRequest {
+    return EchoRequest.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<HelloReply>, I>>(object: I): HelloReply {
-    const message = createBaseHelloReply();
+  fromPartial<I extends Exact<DeepPartial<EchoRequest>, I>>(object: I): EchoRequest {
+    const message = createBaseEchoRequest();
     message.message = object.message ?? "";
     return message;
   },
 };
 
-function createBaseGoodbyeRequest(): GoodbyeRequest {
-  return { name: "" };
-}
-
-export const GoodbyeRequest: MessageFns<GoodbyeRequest> = {
-  encode(message: GoodbyeRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.name !== "") {
-      writer.uint32(10).string(message.name);
-    }
-    return writer;
-  },
-
-  decode(input: BinaryReader | Uint8Array, length?: number): GoodbyeRequest {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseGoodbyeRequest();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 10) {
-            break;
-          }
-
-          message.name = reader.string();
-          continue;
-        }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
-
-  fromJSON(object: any): GoodbyeRequest {
-    return { name: isSet(object.name) ? globalThis.String(object.name) : "" };
-  },
-
-  toJSON(message: GoodbyeRequest): unknown {
-    const obj: any = {};
-    if (message.name !== "") {
-      obj.name = message.name;
-    }
-    return obj;
-  },
-
-  create<I extends Exact<DeepPartial<GoodbyeRequest>, I>>(base?: I): GoodbyeRequest {
-    return GoodbyeRequest.fromPartial(base ?? ({} as any));
-  },
-  fromPartial<I extends Exact<DeepPartial<GoodbyeRequest>, I>>(object: I): GoodbyeRequest {
-    const message = createBaseGoodbyeRequest();
-    message.name = object.name ?? "";
-    return message;
-  },
-};
-
-function createBaseGoodbyeReply(): GoodbyeReply {
+function createBaseEchoReply(): EchoReply {
   return { message: "" };
 }
 
-export const GoodbyeReply: MessageFns<GoodbyeReply> = {
-  encode(message: GoodbyeReply, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+export const EchoReply: MessageFns<EchoReply> = {
+  encode(message: EchoReply, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
     if (message.message !== "") {
       writer.uint32(10).string(message.message);
     }
     return writer;
   },
 
-  decode(input: BinaryReader | Uint8Array, length?: number): GoodbyeReply {
+  decode(input: BinaryReader | Uint8Array, length?: number): EchoReply {
     const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseGoodbyeReply();
+    const message = createBaseEchoReply();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -235,11 +111,11 @@ export const GoodbyeReply: MessageFns<GoodbyeReply> = {
     return message;
   },
 
-  fromJSON(object: any): GoodbyeReply {
+  fromJSON(object: any): EchoReply {
     return { message: isSet(object.message) ? globalThis.String(object.message) : "" };
   },
 
-  toJSON(message: GoodbyeReply): unknown {
+  toJSON(message: EchoReply): unknown {
     const obj: any = {};
     if (message.message !== "") {
       obj.message = message.message;
@@ -247,11 +123,11 @@ export const GoodbyeReply: MessageFns<GoodbyeReply> = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<GoodbyeReply>, I>>(base?: I): GoodbyeReply {
-    return GoodbyeReply.fromPartial(base ?? ({} as any));
+  create<I extends Exact<DeepPartial<EchoReply>, I>>(base?: I): EchoReply {
+    return EchoReply.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<GoodbyeReply>, I>>(object: I): GoodbyeReply {
-    const message = createBaseGoodbyeReply();
+  fromPartial<I extends Exact<DeepPartial<EchoReply>, I>>(object: I): EchoReply {
+    const message = createBaseEchoReply();
     message.message = object.message ?? "";
     return message;
   },

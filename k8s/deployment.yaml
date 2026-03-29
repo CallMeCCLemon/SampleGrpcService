@@ -26,7 +26,7 @@ spec:
     spec:
       containers:
         - name: greeter
-          image: 192.168.1.110:32000/sample-grpc:0.2.2-2c416b2
+          image: 192.168.1.110:32000/sample-grpc:latest
           imagePullPolicy: Always
           env:
             # CNPG creates this secret automatically when the Cluster is ready.

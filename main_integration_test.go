@@ -14,8 +14,7 @@ import (
 // noopDB satisfies dbWriter for tests, discarding all writes.
 type noopDB struct{}
 
-func (n *noopDB) WriteHelloRequest(_ context.Context, _, _ string) error   { return nil }
-func (n *noopDB) WriteGoodbyeRequest(_ context.Context, _, _ string) error { return nil }
+func (n *noopDB) WriteEchoRequest(_ context.Context, _ string) error { return nil }
 
 func startTestServer(t *testing.T) string {
 	t.Helper()
@@ -47,7 +46,7 @@ func newTestClient(t *testing.T, addr string) pb.GreeterClient {
 	return pb.NewGreeterClient(conn)
 }
 
-func TestSayHello(t *testing.T) {
+func TestEcho(t *testing.T) {
 	client := newTestClient(t, startTestServer(t))
 
 	tests := []struct {
@@ -55,42 +54,16 @@ func TestSayHello(t *testing.T) {
 		input   string
 		wantMsg string
 	}{
-		{"typical name", "World", "Hello, World!"},
-		{"empty name", "", "Hello, !"},
-		{"name with spaces", "John Doe", "Hello, John Doe!"},
+		{"typical message", "hello world", "hello world"},
+		{"empty message", "", ""},
+		{"message with spaces", "foo bar baz", "foo bar baz"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			resp, err := client.SayHello(context.Background(), &pb.HelloRequest{Name: tt.input})
+			resp, err := client.Echo(context.Background(), &pb.EchoRequest{Message: tt.input})
 			if err != nil {
-				t.Fatalf("SayHello error: %v", err)
-			}
-			if resp.Message != tt.wantMsg {
-				t.Errorf("got %q, want %q", resp.Message, tt.wantMsg)
-			}
-		})
-	}
-}
-
-func TestSayGoodbye(t *testing.T) {
-	client := newTestClient(t, startTestServer(t))
-
-	tests := []struct {
-		name    string
-		input   string
-		wantMsg string
-	}{
-		{"typical name", "World", "Goodbye, World!"},
-		{"empty name", "", "Goodbye, !"},
-		{"name with spaces", "John Doe", "Goodbye, John Doe!"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			resp, err := client.SayGoodbye(context.Background(), &pb.GoodbyeRequest{Name: tt.input})
-			if err != nil {
-				t.Fatalf("SayGoodbye error: %v", err)
+				t.Fatalf("Echo error: %v", err)
 			}
 			if resp.Message != tt.wantMsg {
 				t.Errorf("got %q, want %q", resp.Message, tt.wantMsg)

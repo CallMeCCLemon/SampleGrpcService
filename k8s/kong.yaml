@@ -17,8 +17,7 @@ config:
 # Kong transcodes each request using the grpc-gateway plugin.
 #
 # Endpoints exposed to the web app (defined by google.api.http annotations in the proto):
-#   POST http://<node-ip>:30080/hello    {"name":"World"}
-#   POST http://<node-ip>:30080/goodbye  {"name":"World"}
+#   POST http://<node-ip>:30080/echo  {"message":"hello world"}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:

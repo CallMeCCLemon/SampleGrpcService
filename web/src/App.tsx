@@ -1,13 +1,13 @@
 import { useState } from 'react'
 import './App.css'
-import { HelloRequest, HelloReply, GoodbyeRequest, GoodbyeReply } from './generated/greeter'
+import { EchoRequest, EchoReply } from './generated/greeter'
 
-// In dev, Vite proxies /hello and /goodbye to Kong (see vite.config.ts).
+// In dev, Vite proxies /echo to Kong (see vite.config.ts).
 // In production, set VITE_KONG_BASE to the Kong proxy URL.
 const KONG_BASE = import.meta.env.VITE_KONG_BASE ?? ''
 
-async function callGreeter(endpoint: string, req: HelloRequest | GoodbyeRequest): Promise<HelloReply | GoodbyeReply> {
-  const res = await fetch(`${KONG_BASE}${endpoint}`, {
+async function callEcho(req: EchoRequest): Promise<EchoReply> {
+  const res = await fetch(`${KONG_BASE}/api/echo`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(req),
@@ -19,19 +19,18 @@ async function callGreeter(endpoint: string, req: HelloRequest | GoodbyeRequest)
 }
 
 function App() {
-  const [name, setName] = useState('')
-  const [response, setResponse] = useState<HelloReply | GoodbyeReply | null>(null)
+  const [message, setMessage] = useState('')
+  const [response, setResponse] = useState<EchoReply | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  const call = async (endpoint: string) => {
-    if (!name.trim()) return
+  const call = async () => {
+    if (!message.trim()) return
     setLoading(true)
     setError(null)
     setResponse(null)
     try {
-      const req: HelloRequest | GoodbyeRequest = { name: name.trim() }
-      setResponse(await callGreeter(endpoint, req))
+      setResponse(await callEcho({ message: message.trim() }))
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -67,18 +66,15 @@ function App() {
       <div className="form">
         <input
           type="text"
-          placeholder="Enter a name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && call('/api/hello')}
+          placeholder="Enter a message"
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && call()}
           disabled={loading}
         />
         <div className="buttons">
-          <button onClick={() => call('/api/hello')} disabled={loading || !name.trim()}>
-            Say Hello
-          </button>
-          <button onClick={() => call('/api/goodbye')} disabled={loading || !name.trim()}>
-            Say Goodbye
+          <button onClick={call} disabled={loading || !message.trim()}>
+            Echo
           </button>
         </div>
       </div>

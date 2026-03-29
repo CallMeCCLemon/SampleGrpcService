@@ -32,16 +32,16 @@ func newMockDB(t *testing.T) (*DB, sqlmock.Sqlmock) {
 	return &DB{orm: orm}, mock
 }
 
-func TestWriteHelloRequest_Success(t *testing.T) {
+func TestWriteEchoRequest_Success(t *testing.T) {
 	db, mock := newMockDB(t)
 
 	mock.ExpectBegin()
-	mock.ExpectQuery(`INSERT INTO "hello_requests"`).
-		WithArgs("World", "Hello, World!", sqlmock.AnyArg()).
+	mock.ExpectQuery(`INSERT INTO "echo_requests"`).
+		WithArgs("hello world", sqlmock.AnyArg()).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
 	mock.ExpectCommit()
 
-	if err := db.WriteHelloRequest(context.Background(), "World", "Hello, World!"); err != nil {
+	if err := db.WriteEchoRequest(context.Background(), "hello world"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
@@ -49,52 +49,17 @@ func TestWriteHelloRequest_Success(t *testing.T) {
 	}
 }
 
-func TestWriteHelloRequest_DBError(t *testing.T) {
+func TestWriteEchoRequest_DBError(t *testing.T) {
 	db, mock := newMockDB(t)
 	dbErr := errors.New("connection lost")
 
 	mock.ExpectBegin()
-	mock.ExpectQuery(`INSERT INTO "hello_requests"`).
-		WithArgs("World", "Hello, World!", sqlmock.AnyArg()).
+	mock.ExpectQuery(`INSERT INTO "echo_requests"`).
+		WithArgs("hello world", sqlmock.AnyArg()).
 		WillReturnError(dbErr)
 	mock.ExpectRollback()
 
-	if err := db.WriteHelloRequest(context.Background(), "World", "Hello, World!"); err == nil {
-		t.Fatal("expected error, got nil")
-	}
-	if err := mock.ExpectationsWereMet(); err != nil {
-		t.Errorf("unmet expectations: %v", err)
-	}
-}
-
-func TestWriteGoodbyeRequest_Success(t *testing.T) {
-	db, mock := newMockDB(t)
-
-	mock.ExpectBegin()
-	mock.ExpectQuery(`INSERT INTO "goodbye_requests"`).
-		WithArgs("World", "Goodbye, World!", sqlmock.AnyArg()).
-		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
-	mock.ExpectCommit()
-
-	if err := db.WriteGoodbyeRequest(context.Background(), "World", "Goodbye, World!"); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if err := mock.ExpectationsWereMet(); err != nil {
-		t.Errorf("unmet expectations: %v", err)
-	}
-}
-
-func TestWriteGoodbyeRequest_DBError(t *testing.T) {
-	db, mock := newMockDB(t)
-	dbErr := errors.New("connection lost")
-
-	mock.ExpectBegin()
-	mock.ExpectQuery(`INSERT INTO "goodbye_requests"`).
-		WithArgs("World", "Goodbye, World!", sqlmock.AnyArg()).
-		WillReturnError(dbErr)
-	mock.ExpectRollback()
-
-	if err := db.WriteGoodbyeRequest(context.Background(), "World", "Goodbye, World!"); err == nil {
+	if err := db.WriteEchoRequest(context.Background(), "hello world"); err == nil {
 		t.Fatal("expected error, got nil")
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
