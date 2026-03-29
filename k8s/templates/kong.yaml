@@ -17,7 +17,7 @@ config:
 # Kong transcodes each request using the grpc-gateway plugin.
 #
 # Endpoints exposed to the web app (defined by google.api.http annotations in the proto):
-#   POST http://<node-ip>:${KONG_NODEPORT}/echo  {"message":"hello world"}
+#   POST http://<node-ip>:${KONG_NODEPORT}${API_PREFIX}/echo  {"message":"hello world"}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -28,12 +28,15 @@ metadata:
     # Tell Kong this Ingress accepts plain HTTP from clients (the plugin handles
     # the gRPC conversion upstream; see konghq.com/protocol on the Service).
     konghq.com/protocols: http
+    # Strip the api_prefix before forwarding to the gRPC service so that backend
+    # route annotations in the proto (/echo) don't need to include the prefix.
+    konghq.com/strip-path: "true"
 spec:
   ingressClassName: kong
   rules:
     - http:
         paths:
-          - path: /
+          - path: ${API_PREFIX}
             pathType: Prefix
             backend:
               service:

@@ -65,6 +65,14 @@ node_ip_tailscale: 100.69.236.43
 # registry_port: NodePort exposed by the local container registry pod.
 registry_port: 32000
 
+# ── API Routing ───────────────────────────────────────────────────────────────
+
+# api_prefix: URL path prefix for all Kong Ingress routes.
+#   All HTTP/JSON endpoints (defined by google.api.http annotations in the proto)
+#   will be served under this prefix, e.g. /api/echo instead of /echo.
+#   Must start with / and not end with /.
+api_prefix: /api
+
 # ── NodePorts ─────────────────────────────────────────────────────────────────
 # All NodePorts must be in the k8s range 30000–32767 and unique within the cluster.
 

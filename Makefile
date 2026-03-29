@@ -24,6 +24,7 @@ REGISTRY_PORT  := $(call cfg,registry_port)
 GRPC_NODEPORT  := $(call cfg,grpc_nodeport)
 KONG_NODEPORT  := $(call cfg,kong_nodeport)
 WEB_NODEPORT   := $(call cfg,web_nodeport)
+API_PREFIX     := $(call cfg,api_prefix)
 
 # LAN registry — used in k8s manifests (pulled by cluster nodes over LAN)
 REGISTRY_LAN   := $(NODE_IP_LAN):$(REGISTRY_PORT)
@@ -157,7 +158,8 @@ generate-k8s:
 	    PUBLIC_DOMAIN="$(PUBLIC_DOMAIN)" \
 	    TUNNEL_SECRET="$(TUNNEL_SECRET)" \
 	    GITHUB_REPO="$(GITHUB_REPO)" \
-	    REGISTRY_PORT="$(REGISTRY_PORT)"; \
+	    REGISTRY_PORT="$(REGISTRY_PORT)" \
+	    API_PREFIX="$(API_PREFIX)"; \
 	for tmpl in k8s/templates/*.yaml; do \
 	    out="k8s/$$(basename $$tmpl)"; \
 	    envsubst < "$$tmpl" > "$$out"; \
