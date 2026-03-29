@@ -47,7 +47,7 @@ GIT_SHA        := $(shell git rev-parse --short HEAD)
 
 # ── Targets ───────────────────────────────────────────────────────────────────
 .PHONY: all build test test-all proto web-proto \
-        docker-build docker-run deploy \
+        docker-build docker-run deploy deploy-all \
         web-docker-build web-deploy \
         kong-deploy generate-k8s \
         loadtest db-cleanup \
@@ -97,6 +97,18 @@ run:
 
 deploy:
 	kubectl apply -f k8s/deployment.yaml
+
+# Applies all manifests in dependency order: deployment.yaml first (creates the
+# namespace), then everything else together. Excludes secrets.example.yaml and
+# kong-values.yaml (Helm values, not a kubectl manifest).
+deploy-all:
+	kubectl apply -f k8s/deployment.yaml
+	kubectl apply \
+	    -f k8s/postgres.yaml \
+	    -f k8s/registry.yaml \
+	    -f k8s/cloudflared.yaml \
+	    -f k8s/kong.yaml \
+	    -f k8s/web-deployment.yaml
 
 web-docker-build:
 	docker buildx build --platform linux/amd64,linux/arm64 \
@@ -163,7 +175,7 @@ db-cleanup:
 	kubectl exec -n $(NAMESPACE) \
 	    $$(kubectl get pod -n $(NAMESPACE) -l cnpg.io/cluster=$(PROJECT_NAME)-db \
 	       -o jsonpath='{.items[0].metadata.name}') \
-	    -- psql -U $(PROJECT_NAME) -c "TRUNCATE TABLE hello_requests, goodbye_requests;"
+	    -- psql -U $(PROJECT_NAME) -c "TRUNCATE TABLE echo_requests;"
 
 clean:
 	rm -f $(BINARY)
