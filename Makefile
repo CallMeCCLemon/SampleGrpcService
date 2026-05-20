@@ -70,19 +70,24 @@ endif
         kong-deploy generate-k8s generate-runner \
         runner-build runner-deploy \
         registry-show registry-prune \
-        hooks-install \
+        hooks-install help \
         loadtest db-cleanup \
         run clean
 
-all: proto build
+# help prints every documented target. Targets are documented by appending
+# `## <description>` after their colon — `make help` greps those out.
+help:  ## Show this help
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z0-9_-]+:.*?## / {printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-proto:
+all: proto build  ## Regenerate proto + build Go binary
+
+proto:  ## Regenerate Go gRPC stubs in pb/
 	protoc --go_out=$(PB_DIR) --go_opt=paths=source_relative \
 	       --go-grpc_out=$(PB_DIR) --go-grpc_opt=paths=source_relative \
 	       -I $(PROTO_DIR) -I third_party \
 	       $(PROTO_DIR)/*.proto
 
-web-proto:
+web-proto:  ## Regenerate TypeScript gRPC stubs in web/src/generated/
 	mkdir -p web/src/generated
 	protoc \
 	    --plugin=protoc-gen-ts_proto=web/node_modules/.bin/protoc-gen-ts_proto \
@@ -95,7 +100,7 @@ web-proto:
 # project.yaml. Kong's grpc-gateway plugin matches the ORIGINAL request path,
 # so under our strip-path: "false" routing the proto annotations must include
 # the full prefix.
-check-api-paths:
+check-api-paths:  ## Verify every proto HTTP annotation starts with api_prefix
 	@PREFIX="$(API_PREFIX)"; \
 	BAD=$$(grep -rEo '(get|post|put|delete|patch): "/[^"]*"' $(PROTO_DIR)/*.proto \
 	    | grep -v ": \"$$PREFIX"); \
@@ -106,16 +111,16 @@ check-api-paths:
 	fi; \
 	echo "OK: all proto HTTP paths start with '$$PREFIX'"
 
-build:
+build:  ## Compile bin/server
 	@mkdir -p bin
 	go build -o $(BINARY) .
 
-test:
+test:  ## Run fast Go tests (sqlmock + interceptor matrix, no Docker)
 	go test -v ./...
 
 # test-integration runs the full suite including testcontainers-backed
 # integration tests (-tags=integration). Requires Docker.
-test-integration:
+test-integration:  ## Run full Go test suite incl. testcontainers (requires Docker)
 	DOCKER_HOST=$$(docker context inspect --format '{{.Endpoints.docker.Host}}') \
 	    TESTCONTAINERS_RYUK_DISABLED=true \
 	    go test -v -tags=integration ./...
@@ -130,22 +135,22 @@ lint-install:
 	    (echo "Installing golangci-lint…" && brew install golangci-lint)
 
 # Run all enabled linters across the whole codebase.
-lint: lint-install
+lint: lint-install  ## Run all enabled linters across the codebase
 	golangci-lint run ./...
 
 # Run linters only on lines changed since the last commit. Use this from a
 # pre-commit hook to gate only on newly introduced issues.
-lint-new: lint-install
+lint-new: lint-install  ## Lint only newly changed lines (used by the pre-commit hook)
 	golangci-lint run --new-from-rev=HEAD ./...
 
 # Auto-fix formatting and simple issues.
-lint-fix: lint-install
+lint-fix: lint-install  ## Auto-fix formatting + simple lint issues
 	golangci-lint run --fix ./...
 
 # Point git at the in-repo .githooks/ directory. One-time per clone; survives
 # branch switches but does not propagate to other clones — every contributor
 # runs this once. `git commit --no-verify` skips the hook for a single commit.
-hooks-install:
+hooks-install:  ## Install the pre-commit hook for this clone (one-time)
 	git config core.hooksPath .githooks
 	@echo "Pre-commit hook installed. Skip with: git commit --no-verify"
 
@@ -163,7 +168,7 @@ GO_COVER_PER_PKG := $(COVERAGE_DIR)/go-package-coverage.txt
 # Run the test suite with coverage profiling, then render summary + HTML.
 # Excludes the generated pb/ package — its statements would dominate the
 # numerator without exercising any real logic.
-coverage-go:
+coverage-go:  ## Generate coverage/go-coverage.{out,html,txt} + per-package summary
 	@mkdir -p $(COVERAGE_DIR)
 	@PKGS=$$(go list ./... | grep -v '/pb$$'); \
 	    go test -count=1 -covermode=atomic -coverprofile=$(GO_COVER_OUT) $$PKGS \
@@ -176,7 +181,7 @@ coverage-go:
 # Enforce the global and per-package coverage floors from project.yaml.
 # Mirror this in CI so local + CI fail for the same reasons. Floors of 0.0
 # mean "anything passes" — useful as a sample-repo default.
-coverage-check: coverage-go
+coverage-check: coverage-go  ## Enforce global + per-package coverage floors from project.yaml
 	@global=$$(awk '/^total:/ {gsub("%",""); print $$3}' $(GO_COVER_SUMMARY)); \
 	awk -v pct="$$global" -v min="$(GO_COVERAGE_GLOBAL_MIN)" 'BEGIN { \
 	  if (pct + 0 < min + 0) { printf "FAIL: global coverage %s%% < %s%% floor\n", pct, min; exit 1 } \
@@ -202,9 +207,9 @@ coverage-check: coverage-go
 
 # Convenience alias. Frontend coverage isn't wired up yet (no vitest setup
 # in web/) — add a coverage-frontend target when those tests land.
-coverage: coverage-go
+coverage: coverage-go  ## Alias for coverage-go (frontend coverage TBD)
 
-docker-build:
+docker-build:  ## Buildx multi-platform build + push of the backend image
 	docker buildx build --platform linux/amd64,linux/arm64 \
 	    -t $(PUSH_IMAGE):$(VERSION)-$(GIT_SHA) \
 	    -t $(PUSH_IMAGE):latest \
@@ -212,19 +217,19 @@ docker-build:
 	    --push .
 	$(SED_INPLACE) "s|$(IMAGE):.*|$(IMAGE):$(VERSION)-$(GIT_SHA)|" k8s/deployment.yaml
 
-docker-run:
+docker-run:  ## Run the backend image locally
 	docker run --rm -p $(PORT):$(PORT) $(IMAGE)
 
-run:
+run:  ## Run the gRPC server locally (requires DATABASE_URL)
 	go run .
 
-deploy:
+deploy:  ## kubectl apply the backend deployment
 	kubectl apply -f k8s/deployment.yaml
 
 # Applies all manifests in dependency order: deployment.yaml first (creates the
 # namespace), then everything else together. Excludes secrets.example.yaml and
 # kong-values.yaml (Helm values, not a kubectl manifest).
-deploy-all:
+deploy-all:  ## Apply every k8s manifest in dependency order
 	kubectl apply -f k8s/deployment.yaml
 	kubectl apply \
 	    -f k8s/postgres.yaml \
@@ -233,7 +238,7 @@ deploy-all:
 	    -f k8s/kong.yaml \
 	    -f k8s/web-deployment.yaml
 
-web-docker-build:
+web-docker-build:  ## Buildx multi-platform build + push of the web image
 	docker buildx build --platform linux/amd64,linux/arm64 \
 	    -t $(WEB_PUSH_IMAGE):$(VERSION)-$(GIT_SHA) \
 	    -t $(WEB_PUSH_IMAGE):latest \
@@ -243,7 +248,7 @@ web-docker-build:
 	    web/
 	$(SED_INPLACE) "s|$(WEB_IMAGE):.*|$(WEB_IMAGE):$(VERSION)-$(GIT_SHA)|" k8s/web-deployment.yaml
 
-web-deploy:
+web-deploy:  ## kubectl apply the web deployment
 	kubectl apply -f k8s/web-deployment.yaml
 
 # kong-deploy refreshes the proto configmaps, applies the Ingress/plugin
@@ -257,7 +262,7 @@ web-deploy:
 # If you later add a proto that imports google.protobuf.* well-known types,
 # add a `protobuf-wkt-protos` configmap (e.g. wrappers.proto, empty.proto)
 # alongside googleapis-protos and mount it in k8s/templates/kong-values.yaml.
-kong-deploy:
+kong-deploy:  ## Refresh proto configmaps + helm upgrade + roll Kong (expensive)
 	helm repo add kong https://charts.konghq.com 2>/dev/null || true
 	helm repo update kong
 	# Bundle every .proto in $(PROTO_DIR) into the configmap so Kong's
@@ -281,7 +286,7 @@ kong-deploy:
 # Render k8s/templates/*.yaml → k8s/*.yaml using the values in project.yaml.
 # Requires envsubst (macOS: brew install gettext).
 # Run this after editing project.yaml, then review `git diff k8s/` and commit.
-generate-k8s:
+generate-k8s:  ## Render k8s/templates/*.yaml -> k8s/*.yaml from project.yaml
 	@command -v envsubst >/dev/null 2>&1 || \
 	    { echo "envsubst not found. Install with: brew install gettext"; exit 1; }
 	@echo "Generating k8s manifests from k8s/templates/ using project.yaml..."
@@ -317,7 +322,7 @@ generate-k8s:
 # so the runner is never deployed by accident. Run this only when you actually
 # want a runner in the cluster — see k8s/templates/optional/runner.yaml for
 # the full setup sequence.
-generate-runner:
+generate-runner:  ## Render the opt-in self-hosted runner manifest
 	@command -v envsubst >/dev/null 2>&1 || \
 	    { echo "envsubst not found. Install with: brew install gettext"; exit 1; }
 	@export \
@@ -350,7 +355,7 @@ runner-builder:
 	    rm -f $$TMP; \
 	fi
 
-runner-build: runner-builder
+runner-build: runner-builder  ## Build + push the self-hosted runner image
 	docker buildx build --builder sample-grpc-insecure --platform linux/amd64 \
 	    -t $(RUNNER_IMAGE) \
 	    --push \
@@ -358,14 +363,14 @@ runner-build: runner-builder
 
 # Apply the runner Deployment + RBAC. Requires `make generate-runner` first
 # so k8s/runner.yaml exists.
-runner-deploy:
+runner-deploy:  ## kubectl apply k8s/runner.yaml (after generate-runner + secret)
 	@[ -f k8s/runner.yaml ] || { echo "k8s/runner.yaml missing — run 'make generate-runner' first"; exit 1; }
 	kubectl apply -f k8s/runner.yaml
 
-loadtest:
+loadtest:  ## Hammer the gRPC server: 20 connections for 30s
 	go run ./cmd/loadtest -addr $(GRPC_ADDR) -concurrency 20 -duration 30s
 
-db-cleanup:
+db-cleanup:  ## TRUNCATE the echo_requests table on the cluster
 	kubectl exec -n $(NAMESPACE) \
 	    $$(kubectl get pod -n $(NAMESPACE) -l cnpg.io/cluster=$(PROJECT_NAME)-db \
 	       -o jsonpath='{.items[0].metadata.name}') \
@@ -376,7 +381,7 @@ db-cleanup:
 
 # registry-show lists every repository and tag in the registry, annotating
 # the tags currently referenced by a k8s deployment with "<- active".
-registry-show:
+registry-show:  ## List repos/tags in the cluster registry; flag live ones
 	@set -e; \
 	REGISTRY="$(REGISTRY_LAN)"; \
 	BE_TAG=$$(grep -oE '$(IMAGE_NAME):[^ ]+' k8s/deployment.yaml | head -1 | cut -d: -f2); \
@@ -404,7 +409,7 @@ registry-show:
 #
 # Prerequisites: REGISTRY_STORAGE_DELETE_ENABLED=true must be set on the
 # registry container (already present in k8s/templates/registry.yaml).
-registry-prune:
+registry-prune:  ## Delete stale tags + run GC inside the registry pod
 	@echo "=== Pruning stale images from registry ==="
 	@set -e; \
 	REGISTRY="$(REGISTRY_LAN)"; \
@@ -438,6 +443,6 @@ registry-prune:
 	    registry garbage-collect /etc/docker/registry/config.yml --delete-untagged
 	@echo "=== Done ==="
 
-clean:
+clean:  ## Remove bin/ and the legacy loadtest binary
 	rm -rf bin/
 	rm -f loadtest

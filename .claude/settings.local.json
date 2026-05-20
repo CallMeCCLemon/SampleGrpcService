@@ -85,7 +85,8 @@
       "Bash(chmod +x *)",
       "Bash(make hooks-install *)",
       "Bash(git config *)",
-      "Bash(.githooks/pre-commit)"
+      "Bash(.githooks/pre-commit)",
+      "Bash(make help *)"
     ]
   }
 }
