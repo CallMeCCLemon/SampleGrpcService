@@ -234,8 +234,12 @@ web-deploy:
 	kubectl apply -f k8s/web-deployment.yaml
 
 kong-deploy:
+	# Bundle every .proto in $(PROTO_DIR) into the configmap so Kong's
+	# grpc-gateway plugin can resolve cross-file imports (the umbrella
+	# $(PROJECT_NAME).proto imports the others). Auto-grows as new protos
+	# are added — no more hand-maintained --from-file list.
 	kubectl create configmap $(PROJECT_NAME)-proto \
-	    --from-file=$(PROJECT_NAME).proto=$(PROTO_DIR)/$(PROJECT_NAME).proto \
+	    $(foreach p,$(wildcard $(PROTO_DIR)/*.proto),--from-file=$(notdir $(p))=$(p)) \
 	    --namespace kong \
 	    --dry-run=client -o yaml | kubectl apply -f -
 	kubectl create configmap googleapis-protos \

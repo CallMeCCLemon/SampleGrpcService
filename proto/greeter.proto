@@ -3,6 +3,13 @@ syntax = "proto3";
 package greeter;
 
 import "google/api/annotations.proto";
+// Import auth.proto so Kong's grpc-gateway plugin discovers AuthService when
+// it loads this file (config.proto points here). All same-package protos that
+// expose HTTP routes must be reachable from this root via imports.
+// `import public` re-exports auth.proto's symbols through greeter.proto and
+// silences the "unused import" warning protoc otherwise emits — we never
+// reference the imported types from this file, only from Go code.
+import public "auth.proto";
 
 option go_package = "SampleGrpcProject/pb";
 

@@ -124,7 +124,35 @@ http://<project_name>-service.<namespace>:80
 
 > Get your tunnel token from the dashboard → Networks → Tunnels → your tunnel → Configure → Install connector.
 
-### 6. Deploy the Applications
+### 6. Auth secret (Google sign-in)
+
+The backend reads `GOOGLE_CLIENT_ID` and `JWT_SECRET` from a Kubernetes secret named `<project_name>-auth`. Create it before deploying the backend — the pod will be stuck in `CreateContainerConfigError` until the secret exists.
+
+```bash
+# Create your OAuth client ID at:
+#   https://console.cloud.google.com/apis/credentials
+# (Application type: Web application. Add your Cloudflare-tunneled origin and
+# http://localhost:5173 to "Authorized JavaScript origins" if you'll dev locally.)
+
+CLIENT_ID="<your-id>.apps.googleusercontent.com"
+
+kubectl create secret generic greeter-auth \
+  --namespace grpc-demo \
+  --from-literal=google-client-id="$CLIENT_ID" \
+  --from-literal=jwt-secret="$(openssl rand -base64 48)"
+```
+
+`jwt-secret` is the HMAC-SHA256 key used to sign session JWTs the server hands out after a successful Google sign-in. Generate it once and persist; rotating it invalidates every active session.
+
+To make a user an admin (e.g. so they can call `ListUsers`):
+
+```bash
+kubectl exec -n grpc-demo \
+  $(kubectl get pod -n grpc-demo -l cnpg.io/cluster=greeter-db -o jsonpath='{.items[0].metadata.name}') \
+  -- psql -U greeter -c "UPDATE users SET is_admin = true WHERE email = '<their-email>';"
+```
+
+### 7. Deploy the Applications
 
 ```bash
 make docker-build && make deploy          # gRPC backend
