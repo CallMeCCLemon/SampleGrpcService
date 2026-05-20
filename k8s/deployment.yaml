@@ -26,7 +26,7 @@ spec:
     spec:
       containers:
         - name: greeter
-          image: 192.168.1.110:32000/sample-grpc:0.3.0-6839324
+          image: 192.168.1.110:32000/sample-grpc:latest
           imagePullPolicy: Always
           env:
             # CNPG creates this secret automatically when the Cluster is ready.
@@ -35,6 +35,23 @@ spec:
                 secretKeyRef:
                   name: greeter-db-app
                   key: uri
+            # Auth secrets — create with:
+            #   kubectl create secret generic greeter-auth \
+            #     --namespace grpc-demo \
+            #     --from-literal=google-client-id=<your-id>.apps.googleusercontent.com \
+            #     --from-literal=jwt-secret=$(openssl rand -base64 48)
+            - name: GOOGLE_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: greeter-auth
+                  key: google-client-id
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: greeter-auth
+                  key: jwt-secret
+            # GOOGLE_JWKS_URL defaults to Google's production endpoint in code.
+            # Only set this to override (e.g. for integration testing).
           ports:
             - name: grpc
               containerPort: 50051

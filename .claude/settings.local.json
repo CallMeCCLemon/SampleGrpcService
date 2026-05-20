@@ -73,7 +73,8 @@
       "Bash(go vet *)",
       "Bash(git check-ignore *)",
       "Bash(make coverage-check *)",
-      "Bash(make generate-runner *)"
+      "Bash(make generate-runner *)",
+      "Bash(make lint-fix *)"
     ]
   }
 }

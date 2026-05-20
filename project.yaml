@@ -50,6 +50,14 @@ tunnel_secret_name: sample-grpc-demo-tunnel-creds
 #   Update this when forking or renaming the repository.
 github_repo: https://github.com/CallMeCCLemon/SampleGrpcService
 
+# google_client_id: OAuth 2.0 client ID for Google Sign-In.
+#   Baked into the web bundle at build time (client IDs are public, not secrets)
+#   and validated server-side against the aud claim on Google ID tokens.
+#   Create yours at https://console.cloud.google.com/apis/credentials.
+#   Leave empty to disable Google sign-in (server still starts; LoginWithGoogle
+#   will reject all tokens).
+google_client_id: ""
+
 # ── Cluster Networking ────────────────────────────────────────────────────────
 
 # node_ip_lan: LAN IP of the primary k8s node (typically the control-plane).

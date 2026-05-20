@@ -1,0 +1,68 @@
+syntax = "proto3";
+
+package greeter;
+
+import "google/api/annotations.proto";
+
+option go_package = "SampleGrpcProject/pb";
+
+// HTTP path annotations include the full api_prefix because Kong runs with
+// strip-path: "false" — the grpc-gateway plugin matches against the original
+// request path. The prefix must match api_prefix in project.yaml. Run
+// `make check-api-paths` to enforce consistency.
+
+service AuthService {
+  // Exchange a Google ID token for a session JWT.
+  rpc LoginWithGoogle(GoogleLoginRequest) returns (SessionResponse) {
+    option (google.api.http) = {
+      post: "/greeter/api/auth/login"
+      body: "*"
+    };
+  }
+
+  // Return the authenticated user's profile (JWT required).
+  rpc GetCurrentUser(GetCurrentUserRequest) returns (User) {
+    option (google.api.http) = {
+      get: "/greeter/api/auth/me"
+    };
+  }
+
+  // Update the authenticated user's profile (JWT required).
+  rpc UpdateProfile(UpdateProfileRequest) returns (User) {
+    option (google.api.http) = {
+      post: "/greeter/api/auth/me"
+      body: "*"
+    };
+  }
+
+  // List all user accounts (admin only — enforced by the interceptor).
+  rpc ListUsers(ListUsersRequest) returns (ListUsersResponse) {
+    option (google.api.http) = {
+      get: "/greeter/api/admin/users"
+    };
+  }
+}
+
+message GoogleLoginRequest { string id_token = 1; }
+
+message SessionResponse {
+  string jwt  = 1;
+  User   user = 2;
+}
+
+message User {
+  string id           = 1;
+  string email        = 2;
+  string display_name = 3;
+  string username     = 4;  // optional player-chosen handle; empty if not yet set
+  string picture_url  = 5;  // Google profile picture URL; empty if not available
+  bool   is_admin     = 6;  // true if the user has admin privileges
+}
+
+message UpdateProfileRequest {
+  string username = 1;  // new username; send empty string to clear
+}
+
+message GetCurrentUserRequest {}
+message ListUsersRequest {}
+message ListUsersResponse { repeated User users = 1; }

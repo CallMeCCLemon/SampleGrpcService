@@ -8,6 +8,7 @@ import (
 	"os"
 	"time"
 
+	"SampleGrpcProject/internal/auth"
 	"SampleGrpcProject/internal/db"
 	"SampleGrpcProject/internal/logger"
 	pb "SampleGrpcProject/pb"
@@ -107,8 +108,15 @@ func main() {
 		logger.Fatal("failed to listen", "port", port, "error", err)
 	}
 
-	s := grpc.NewServer(grpc.UnaryInterceptor(loggingInterceptor))
+	// Auth interceptor runs first (rejects bad tokens before any handler runs);
+	// logging interceptor wraps the validated call so request logs carry the
+	// final status code.
+	s := grpc.NewServer(grpc.ChainUnaryInterceptor(
+		auth.UnaryAuthInterceptor,
+		loggingInterceptor,
+	))
 	pb.RegisterGreeterServer(s, &server{db: database})
+	pb.RegisterAuthServiceServer(s, auth.NewServer(database))
 	reflection.Register(s)
 
 	healthSrv := health.NewServer()
