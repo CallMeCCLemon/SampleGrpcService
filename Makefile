@@ -61,7 +61,7 @@ else
 endif
 
 # ── Targets ───────────────────────────────────────────────────────────────────
-.PHONY: all build test test-all proto web-proto \
+.PHONY: all build test test-all proto web-proto check-api-paths \
         lint lint-install lint-new lint-fix \
         coverage coverage-go coverage-check \
         docker-build docker-run deploy deploy-all \
@@ -87,6 +87,21 @@ web-proto:
 	    --ts_proto_opt=esModuleInterop=true,outputServices=fetch-client,fetchType=native,constEnums=false \
 	    -I $(PROTO_DIR) -I third_party \
 	    $(PROTO_DIR)/*.proto
+
+# Verify every HTTP annotation in the proto starts with api_prefix from
+# project.yaml. Kong's grpc-gateway plugin matches the ORIGINAL request path,
+# so under our strip-path: "false" routing the proto annotations must include
+# the full prefix.
+check-api-paths:
+	@PREFIX="$(API_PREFIX)"; \
+	BAD=$$(grep -rEo '(get|post|put|delete|patch): "/[^"]*"' $(PROTO_DIR)/*.proto \
+	    | grep -v ": \"$$PREFIX"); \
+	if [ -n "$$BAD" ]; then \
+	    echo "ERROR: proto paths missing api_prefix '$$PREFIX':"; \
+	    echo "$$BAD"; \
+	    exit 1; \
+	fi; \
+	echo "OK: all proto HTTP paths start with '$$PREFIX'"
 
 build:
 	@mkdir -p bin

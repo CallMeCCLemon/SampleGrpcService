@@ -28,9 +28,11 @@ metadata:
     # Tell Kong this Ingress accepts plain HTTP from clients (the plugin handles
     # the gRPC conversion upstream; see konghq.com/protocol on the Service).
     konghq.com/protocols: http
-    # Strip the api_prefix before forwarding to the gRPC service so that backend
-    # route annotations in the proto (/echo) don't need to include the prefix.
-    konghq.com/strip-path: "true"
+    # DO NOT strip the prefix. Kong's grpc-gateway plugin matches the ORIGINAL
+    # request path (before any strip-path rewrite) against the proto HTTP
+    # annotations, so the proto must include the full api_prefix. The
+    # `make check-api-paths` target guards this invariant.
+    konghq.com/strip-path: "false"
 spec:
   ingressClassName: kong
   rules:

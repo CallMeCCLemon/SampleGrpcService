@@ -9,7 +9,7 @@ option go_package = "SampleGrpcProject/pb";
 service Greeter {
   rpc Echo (EchoRequest) returns (EchoReply) {
     option (google.api.http) = {
-      post: "/echo"
+      post: "/greeter/api/echo"
       body: "*"
     };
   }

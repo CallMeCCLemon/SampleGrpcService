@@ -68,10 +68,16 @@ registry_port: 32000
 # ── API Routing ───────────────────────────────────────────────────────────────
 
 # api_prefix: URL path prefix for all Kong Ingress routes.
-#   All HTTP/JSON endpoints (defined by google.api.http annotations in the proto)
-#   will be served under this prefix, e.g. /api/echo instead of /echo.
+#   Kong routes any request starting with this prefix to the gRPC service and
+#   does NOT strip the prefix before forwarding (strip-path: "false" in
+#   kong.yaml). That means proto google.api.http annotations must include the
+#   full prefix — e.g. post: "/greeter/api/echo", not post: "/echo".
+#   The `make check-api-paths` target enforces this.
+#
+#   Including the project name in the prefix (`/greeter/api`) lets multiple
+#   projects share one Kong gateway without path collisions.
 #   Must start with / and not end with /.
-api_prefix: /api
+api_prefix: /greeter/api
 
 # ── NodePorts ─────────────────────────────────────────────────────────────────
 # All NodePorts must be in the k8s range 30000–32767 and unique within the cluster.
