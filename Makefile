@@ -69,6 +69,7 @@ endif
         web-docker-build web-deploy \
         kong-deploy generate-k8s generate-runner \
         runner-build runner-deploy \
+        registry-show registry-prune \
         loadtest db-cleanup \
         run clean
 
@@ -235,7 +236,20 @@ web-docker-build:
 web-deploy:
 	kubectl apply -f k8s/web-deployment.yaml
 
+# kong-deploy refreshes the proto configmaps, applies the Ingress/plugin
+# manifest, upgrades the Kong Helm release with the latest values, and rolls
+# the gateway so the new configmap mounts take effect.
+#
+# This is an expensive operation (helm upgrade + rollout can take several
+# minutes). Run only when proto annotations, Kong config, or kong-values.yaml
+# actually change — not on every backend push.
+#
+# If you later add a proto that imports google.protobuf.* well-known types,
+# add a `protobuf-wkt-protos` configmap (e.g. wrappers.proto, empty.proto)
+# alongside googleapis-protos and mount it in k8s/templates/kong-values.yaml.
 kong-deploy:
+	helm repo add kong https://charts.konghq.com 2>/dev/null || true
+	helm repo update kong
 	# Bundle every .proto in $(PROTO_DIR) into the configmap so Kong's
 	# grpc-gateway plugin can resolve cross-file imports (the umbrella
 	# $(PROJECT_NAME).proto imports the others). Auto-grows as new protos
@@ -250,7 +264,9 @@ kong-deploy:
 	    --namespace kong \
 	    --dry-run=client -o yaml | kubectl apply -f -
 	kubectl apply -f k8s/kong.yaml
-	kubectl apply -f k8s/deployment.yaml
+	helm upgrade kong kong/ingress --namespace kong --values k8s/kong-values.yaml
+	kubectl rollout restart deployment/kong-gateway -n kong
+	kubectl rollout status deployment/kong-gateway -n kong
 
 # Render k8s/templates/*.yaml → k8s/*.yaml using the values in project.yaml.
 # Requires envsubst (macOS: brew install gettext).
@@ -344,6 +360,73 @@ db-cleanup:
 	    $$(kubectl get pod -n $(NAMESPACE) -l cnpg.io/cluster=$(PROJECT_NAME)-db \
 	       -o jsonpath='{.items[0].metadata.name}') \
 	    -- psql -U $(PROJECT_NAME) -c "TRUNCATE TABLE echo_requests;"
+
+# ── Registry ──────────────────────────────────────────────────────────────────
+# Helpers for inspecting and trimming the in-cluster container registry.
+
+# registry-show lists every repository and tag in the registry, annotating
+# the tags currently referenced by a k8s deployment with "<- active".
+registry-show:
+	@set -e; \
+	REGISTRY="$(REGISTRY_LAN)"; \
+	BE_TAG=$$(grep -oE '$(IMAGE_NAME):[^ ]+' k8s/deployment.yaml | head -1 | cut -d: -f2); \
+	WEB_TAG=$$(grep -oE '$(WEB_IMAGE_NAME):[^ ]+' k8s/web-deployment.yaml | head -1 | cut -d: -f2); \
+	REPOS=$$(curl -sf "http://$$REGISTRY/v2/_catalog" \
+	    | python3 -c "import sys,json; d=json.load(sys.stdin); [print(r) for r in d.get('repositories') or []]"); \
+	for REPO in $$REPOS; do \
+	    echo "$$REPO"; \
+	    TAGS=$$(curl -sf "http://$$REGISTRY/v2/$$REPO/tags/list" \
+	        | python3 -c "import sys,json; d=json.load(sys.stdin); [print(t) for t in sorted(d.get('tags') or [])]" \
+	        2>/dev/null || true); \
+	    for TAG in $$TAGS; do \
+	        ACTIVE=""; \
+	        if [ "$$REPO:$$TAG" = "$(IMAGE_NAME):$$BE_TAG" ] || \
+	           [ "$$REPO:$$TAG" = "$(WEB_IMAGE_NAME):$$WEB_TAG" ]; then \
+	            ACTIVE=" <- active"; \
+	        fi; \
+	        echo "  $$TAG$$ACTIVE"; \
+	    done; \
+	done
+
+# registry-prune deletes every image tag that is not "latest" or the tag
+# currently referenced by a k8s deployment, then runs garbage collection
+# inside the registry pod to reclaim disk space.
+#
+# Prerequisites: REGISTRY_STORAGE_DELETE_ENABLED=true must be set on the
+# registry container (already present in k8s/templates/registry.yaml).
+registry-prune:
+	@echo "=== Pruning stale images from registry ==="
+	@set -e; \
+	REGISTRY="$(REGISTRY_LAN)"; \
+	BE_TAG=$$(grep -oE '$(IMAGE_NAME):[^ ]+' k8s/deployment.yaml | head -1 | cut -d: -f2); \
+	WEB_TAG=$$(grep -oE '$(WEB_IMAGE_NAME):[^ ]+' k8s/web-deployment.yaml | head -1 | cut -d: -f2); \
+	echo "Active tags — backend: $$BE_TAG  web: $$WEB_TAG"; \
+	for ENTRY in "$(IMAGE_NAME):$$BE_TAG" "$(WEB_IMAGE_NAME):$$WEB_TAG"; do \
+	    REPO=$$(echo "$$ENTRY" | cut -d: -f1); \
+	    KEEP=$$(echo "$$ENTRY" | cut -d: -f2); \
+	    echo "--- $$REPO (keeping: latest, $$KEEP) ---"; \
+	    TAGS=$$(curl -sf "http://$$REGISTRY/v2/$$REPO/tags/list" \
+	        | python3 -c "import sys,json; d=json.load(sys.stdin); [print(t) for t in d.get('tags') or []]" \
+	        2>/dev/null || true); \
+	    for TAG in $$TAGS; do \
+	        if [ "$$TAG" = "latest" ] || [ "$$TAG" = "$$KEEP" ]; then \
+	            echo "  keep    $$TAG"; continue; \
+	        fi; \
+	        DIGEST=$$(curl -sf -I \
+	            -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
+	            "http://$$REGISTRY/v2/$$REPO/manifests/$$TAG" \
+	            | grep -i docker-content-digest | awk '{print $$2}' | tr -d '\r\n'); \
+	        if [ -n "$$DIGEST" ]; then \
+	            curl -sf -X DELETE "http://$$REGISTRY/v2/$$REPO/manifests/$$DIGEST" \
+	                && echo "  deleted $$TAG" \
+	                || echo "  failed  $$TAG (registry may not have delete enabled)"; \
+	        fi; \
+	    done; \
+	done
+	@echo "=== Running garbage collection in registry pod ==="
+	kubectl exec -n registry-system deploy/registry -- \
+	    registry garbage-collect /etc/docker/registry/config.yml --delete-untagged
+	@echo "=== Done ==="
 
 clean:
 	rm -rf bin/
