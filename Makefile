@@ -28,6 +28,7 @@ API_PREFIX     := $(call cfg,api_prefix)
 GO_COVERAGE_GLOBAL_MIN      := $(call cfg,coverage_global_min)
 GO_COVERAGE_PACKAGE_MIN     := $(call cfg,coverage_package_min)
 GO_COVERAGE_EXEMPT_PATTERNS := $(call cfg,coverage_exempt_patterns)
+GOOGLE_CLIENT_ID            := $(call cfg,google_client_id)
 
 # LAN registry — used in k8s manifests (pulled by cluster nodes over LAN)
 REGISTRY_LAN   := $(NODE_IP_LAN):$(REGISTRY_PORT)
@@ -226,6 +227,7 @@ web-docker-build:
 	    -t $(WEB_PUSH_IMAGE):$(VERSION)-$(GIT_SHA) \
 	    -t $(WEB_PUSH_IMAGE):latest \
 	    --build-arg VITE_GITHUB_REPO=$(GITHUB_REPO) \
+	    --build-arg VITE_GOOGLE_CLIENT_ID=$(GOOGLE_CLIENT_ID) \
 	    --push \
 	    web/
 	$(SED_INPLACE) "s|$(WEB_IMAGE):.*|$(WEB_IMAGE):$(VERSION)-$(GIT_SHA)|" k8s/web-deployment.yaml
@@ -279,7 +281,7 @@ generate-k8s:
 	    envsubst < "$$tmpl" > "$$out"; \
 	    echo "  $$tmpl -> $$out"; \
 	done
-	@printf '# Base environment — loaded in all Vite modes (dev and production build).\n# Values here are baked into the JS bundle at build time.\n#\n# This file is auto-updated by `make generate-k8s` from project.yaml.\n# Do not edit by hand; change github_repo in project.yaml instead.\nVITE_GITHUB_REPO=$(GITHUB_REPO)\n' > web/.env
+	@printf '# Base environment — loaded in all Vite modes (dev and production build).\n# Values here are baked into the JS bundle at build time.\n#\n# This file is auto-updated by `make generate-k8s` from project.yaml.\n# Do not edit by hand; change values in project.yaml instead.\nVITE_GITHUB_REPO=$(GITHUB_REPO)\nVITE_GOOGLE_CLIENT_ID=$(GOOGLE_CLIENT_ID)\n' > web/.env
 	@echo "  project.yaml -> web/.env"
 	@echo "Done. Review changes with 'git diff' and commit if correct."
 	@echo "Note: docker-build will re-pin the image tags in deployment.yaml and web-deployment.yaml."

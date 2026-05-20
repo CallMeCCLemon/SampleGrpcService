@@ -1,13 +1,14 @@
 import { useState } from 'react'
 import './App.css'
 import { EchoRequest, EchoReply } from './generated/greeter'
+import { AuthBar } from './auth/AuthBar'
 
-// In dev, Vite proxies /echo to Kong (see vite.config.ts).
+// In dev, Vite proxies /greeter/* to Kong (see vite.config.ts).
 // In production, set VITE_KONG_BASE to the Kong proxy URL.
 const KONG_BASE = import.meta.env.VITE_KONG_BASE ?? ''
 
 async function callEcho(req: EchoRequest): Promise<EchoReply> {
-  const res = await fetch(`${KONG_BASE}/api/echo`, {
+  const res = await fetch(`${KONG_BASE}/greeter/api/echo`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(req),
@@ -40,6 +41,7 @@ function App() {
 
   return (
     <div className="app">
+      <AuthBar />
       <a
         className="github-link"
         href={import.meta.env.VITE_GITHUB_REPO}

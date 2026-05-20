@@ -13,12 +13,12 @@ export default defineConfig(({ mode }) => {
     server: {
       hmr: true,
       proxy: {
-        // Proxy all /api/* requests to Kong, stripping the /api prefix.
-        // e.g. POST /api/hello -> Kong receives POST /hello
+        // Forward /greeter/* directly to Kong, preserving the full path.
+        // Kong runs with strip-path: "false" so it matches against
+        // /greeter/api/... — the proto annotations include the full prefix.
         // Mirrors the nginx.conf convention so dev and prod behave identically.
-        '/api': {
+        '/greeter': {
           target: kongUrl,
-          rewrite: (path) => path.replace(/^\/api/, ''),
         },
       },
     },

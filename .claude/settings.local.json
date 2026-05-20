@@ -75,7 +75,9 @@
       "Bash(make coverage-check *)",
       "Bash(make generate-runner *)",
       "Bash(make lint-fix *)",
-      "Bash(make -n kong-deploy)"
+      "Bash(make -n kong-deploy)",
+      "Bash(npm install *)",
+      "Bash(npm run *)"
     ]
   }
 }

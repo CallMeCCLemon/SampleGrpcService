@@ -109,3 +109,55 @@ button:disabled {
   font-size: 0.9rem;
   word-break: break-word;
 }
+
+.auth-bar {
+  position: absolute;
+  top: 1.25rem;
+  left: 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.85rem;
+  color: #aaa;
+}
+
+.auth-user {
+  white-space: nowrap;
+}
+
+.auth-user strong {
+  color: #e0e0e0;
+  font-weight: 600;
+}
+
+.auth-admin-badge {
+  margin-left: 0.4rem;
+  padding: 0.1rem 0.4rem;
+  font-size: 0.7rem;
+  background: #4ecca3;
+  color: #1a1a2e;
+  border-radius: 0.25rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.auth-signout {
+  padding: 0.3rem 0.6rem;
+  font-size: 0.8rem;
+  background: transparent;
+  border: 1px solid #444;
+  color: #aaa;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+}
+
+.auth-signout:hover {
+  border-color: #888;
+  color: #e0e0e0;
+}
+
+.auth-expired {
+  color: #ff6b6b;
+  font-size: 0.8rem;
+}
