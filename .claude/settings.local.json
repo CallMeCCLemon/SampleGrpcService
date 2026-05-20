@@ -71,7 +71,8 @@
       "Bash(golangci-lint --version)",
       "Bash(make lint *)",
       "Bash(go vet *)",
-      "Bash(git check-ignore *)"
+      "Bash(git check-ignore *)",
+      "Bash(make coverage-check *)"
     ]
   }
 }

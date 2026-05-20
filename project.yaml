@@ -87,3 +87,20 @@ kong_nodeport: 30080
 # web_nodeport: NodePort for the React web front-end (Nginx).
 #   For direct LAN access. Production traffic is routed via the Cloudflare tunnel.
 web_nodeport: 30090
+
+# ── Coverage Floors ───────────────────────────────────────────────────────────
+# Minimum Go test coverage percentages enforced by `make coverage-check`.
+# This is a sample/template repo with no real test suite, so defaults are 0.0.
+# Bump these as the test suite grows; both accept floats (e.g. 54.5).
+
+# coverage_global_min: floor for total coverage across all non-exempt packages.
+coverage_global_min: 0.0
+
+# coverage_package_min: floor for each individual non-exempt package.
+coverage_package_min: 0.0
+
+# coverage_exempt_patterns: pipe-separated egrep regex of package paths to
+#   exclude from the per-package floor. Leave blank to enforce on everything.
+#   Examples (uncomment to use):
+#     coverage_exempt_patterns: /cmd/|/pb$
+coverage_exempt_patterns:

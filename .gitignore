@@ -3,6 +3,9 @@ bin/
 /server
 /loadtest
 
+# Coverage reports
+coverage/
+
 # IDE Files
 .idea
 

@@ -25,6 +25,9 @@ GRPC_NODEPORT  := $(call cfg,grpc_nodeport)
 KONG_NODEPORT  := $(call cfg,kong_nodeport)
 WEB_NODEPORT   := $(call cfg,web_nodeport)
 API_PREFIX     := $(call cfg,api_prefix)
+GO_COVERAGE_GLOBAL_MIN      := $(call cfg,coverage_global_min)
+GO_COVERAGE_PACKAGE_MIN     := $(call cfg,coverage_package_min)
+GO_COVERAGE_EXEMPT_PATTERNS := $(call cfg,coverage_exempt_patterns)
 
 # LAN registry — used in k8s manifests (pulled by cluster nodes over LAN)
 REGISTRY_LAN   := $(NODE_IP_LAN):$(REGISTRY_PORT)
@@ -60,6 +63,7 @@ endif
 # ── Targets ───────────────────────────────────────────────────────────────────
 .PHONY: all build test test-all proto web-proto \
         lint lint-install lint-new lint-fix \
+        coverage coverage-go coverage-check \
         docker-build docker-run deploy deploy-all \
         web-docker-build web-deploy \
         kong-deploy generate-k8s \
@@ -116,6 +120,61 @@ lint-new: lint-install
 # Auto-fix formatting and simple issues.
 lint-fix: lint-install
 	golangci-lint run --fix ./...
+
+# ── Coverage ──────────────────────────────────────────────────────────────────
+# Coverage floors are configured in project.yaml (coverage_global_min,
+# coverage_package_min, coverage_exempt_patterns). Defaults are 0.0 for this
+# sample repo — raise them as a real test suite is added.
+
+COVERAGE_DIR     := coverage
+GO_COVER_OUT     := $(COVERAGE_DIR)/go-coverage.out
+GO_COVER_HTML    := $(COVERAGE_DIR)/go-coverage.html
+GO_COVER_SUMMARY := $(COVERAGE_DIR)/go-coverage-summary.txt
+GO_COVER_PER_PKG := $(COVERAGE_DIR)/go-package-coverage.txt
+
+# Run the test suite with coverage profiling, then render summary + HTML.
+# Excludes the generated pb/ package — its statements would dominate the
+# numerator without exercising any real logic.
+coverage-go:
+	@mkdir -p $(COVERAGE_DIR)
+	@PKGS=$$(go list ./... | grep -v '/pb$$'); \
+	    go test -count=1 -covermode=atomic -coverprofile=$(GO_COVER_OUT) $$PKGS \
+	      | tee $(GO_COVER_PER_PKG).raw
+	@grep -E '^ok\s.+coverage: [0-9.]+%' $(GO_COVER_PER_PKG).raw > $(GO_COVER_PER_PKG) || true
+	@rm -f $(GO_COVER_PER_PKG).raw
+	go tool cover -html=$(GO_COVER_OUT) -o $(GO_COVER_HTML)
+	go tool cover -func=$(GO_COVER_OUT) > $(GO_COVER_SUMMARY)
+
+# Enforce the global and per-package coverage floors from project.yaml.
+# Mirror this in CI so local + CI fail for the same reasons. Floors of 0.0
+# mean "anything passes" — useful as a sample-repo default.
+coverage-check: coverage-go
+	@global=$$(awk '/^total:/ {gsub("%",""); print $$3}' $(GO_COVER_SUMMARY)); \
+	awk -v pct="$$global" -v min="$(GO_COVERAGE_GLOBAL_MIN)" 'BEGIN { \
+	  if (pct + 0 < min + 0) { printf "FAIL: global coverage %s%% < %s%% floor\n", pct, min; exit 1 } \
+	  printf "OK: global coverage %s%% >= %s%% floor\n", pct, min \
+	}'
+	@exempt='$(GO_COVERAGE_EXEMPT_PATTERNS)'; \
+	fail=0; \
+	while IFS= read -r line; do \
+	  pkg=$$(echo "$$line" | awk '{print $$2}'); \
+	  pct=$$(echo "$$line" | sed -E 's/.*coverage: ([0-9.]+)% of statements.*/\1/'); \
+	  if [ -n "$$exempt" ] && echo "$$pkg" | grep -qE "$$exempt"; then \
+	    printf "  exempt: %-50s %s%%\n" "$$pkg" "$$pct"; continue; \
+	  fi; \
+	  awk -v pkg="$$pkg" -v pct="$$pct" -v min="$(GO_COVERAGE_PACKAGE_MIN)" 'BEGIN { \
+	    if (pct + 0 < min + 0) { printf "  FAIL:   %-50s %s%% < %s%% floor\n", pkg, pct, min; exit 1 } \
+	    printf "  ok:     %-50s %s%%\n", pkg, pct \
+	  }' || fail=1; \
+	done < $(GO_COVER_PER_PKG); \
+	if [ "$$fail" = "1" ]; then \
+	  echo; echo "One or more packages are below the $(GO_COVERAGE_PACKAGE_MIN)% per-package floor."; \
+	  exit 1; \
+	fi
+
+# Convenience alias. Frontend coverage isn't wired up yet (no vitest setup
+# in web/) — add a coverage-frontend target when those tests land.
+coverage: coverage-go
 
 docker-build:
 	docker buildx build --platform linux/amd64,linux/arm64 \
