@@ -70,6 +70,7 @@ endif
         kong-deploy generate-k8s generate-runner \
         runner-build runner-deploy \
         registry-show registry-prune \
+        hooks-install \
         loadtest db-cleanup \
         run clean
 
@@ -140,6 +141,13 @@ lint-new: lint-install
 # Auto-fix formatting and simple issues.
 lint-fix: lint-install
 	golangci-lint run --fix ./...
+
+# Point git at the in-repo .githooks/ directory. One-time per clone; survives
+# branch switches but does not propagate to other clones — every contributor
+# runs this once. `git commit --no-verify` skips the hook for a single commit.
+hooks-install:
+	git config core.hooksPath .githooks
+	@echo "Pre-commit hook installed. Skip with: git commit --no-verify"
 
 # ── Coverage ──────────────────────────────────────────────────────────────────
 # Coverage floors are configured in project.yaml (coverage_global_min,

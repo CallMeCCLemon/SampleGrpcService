@@ -81,7 +81,11 @@
       "Bash(make -n registry-show)",
       "Bash(make -n registry-prune)",
       "Bash(make -n test-integration)",
-      "Bash(chmod +x scripts/mint-cluster-token.sh)"
+      "Bash(chmod +x scripts/mint-cluster-token.sh)",
+      "Bash(chmod +x *)",
+      "Bash(make hooks-install *)",
+      "Bash(git config *)",
+      "Bash(.githooks/pre-commit)"
     ]
   }
 }
