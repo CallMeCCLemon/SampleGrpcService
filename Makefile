@@ -1,4 +1,4 @@
-BINARY  := server
+BINARY  := bin/server
 
 # ── Config ────────────────────────────────────────────────────────────────────
 # All project-specific values are read from project.yaml.
@@ -44,7 +44,18 @@ PORT           := 50051
 PROTO_DIR      := proto
 PB_DIR         := pb
 VERSION        := $(shell cat VERSION)
-GIT_SHA        := $(shell git rev-parse --short HEAD)
+# Prefer the CI-provided commit SHA when running under GitHub Actions; fall back
+# to the local git checkout for dev builds. Shallow CI checkouts may not have
+# git history, so reading $GITHUB_SHA directly is more reliable there.
+GIT_SHA        := $(if $(GITHUB_SHA),$(shell echo "$(GITHUB_SHA)" | cut -c1-7),$(shell git rev-parse --short HEAD 2>/dev/null || echo dev))
+
+# Cross-platform sed -i: macOS BSD sed requires an explicit empty suffix (''),
+# GNU/Linux sed does not accept it as a separate argument.
+ifeq ($(shell uname),Darwin)
+  SED_INPLACE = sed -i ''
+else
+  SED_INPLACE = sed -i
+endif
 
 # ── Targets ───────────────────────────────────────────────────────────────────
 .PHONY: all build test test-all proto web-proto \
@@ -72,6 +83,7 @@ web-proto:
 	    $(PROTO_DIR)/*.proto
 
 build:
+	@mkdir -p bin
 	go build -o $(BINARY) .
 
 test:
@@ -88,7 +100,7 @@ docker-build:
 	    -t $(PUSH_IMAGE):latest \
 	    --build-arg VERSION=$(VERSION)-$(GIT_SHA) \
 	    --push .
-	sed -i '' "s|$(IMAGE):.*|$(IMAGE):$(VERSION)-$(GIT_SHA)|" k8s/deployment.yaml
+	$(SED_INPLACE) "s|$(IMAGE):.*|$(IMAGE):$(VERSION)-$(GIT_SHA)|" k8s/deployment.yaml
 
 docker-run:
 	docker run --rm -p $(PORT):$(PORT) $(IMAGE)
@@ -118,7 +130,7 @@ web-docker-build:
 	    --build-arg VITE_GITHUB_REPO=$(GITHUB_REPO) \
 	    --push \
 	    web/
-	sed -i '' "s|$(WEB_IMAGE):.*|$(WEB_IMAGE):$(VERSION)-$(GIT_SHA)|" k8s/web-deployment.yaml
+	$(SED_INPLACE) "s|$(WEB_IMAGE):.*|$(WEB_IMAGE):$(VERSION)-$(GIT_SHA)|" k8s/web-deployment.yaml
 
 web-deploy:
 	kubectl apply -f k8s/web-deployment.yaml
@@ -180,5 +192,5 @@ db-cleanup:
 	    -- psql -U $(PROJECT_NAME) -c "TRUNCATE TABLE echo_requests;"
 
 clean:
-	rm -f $(BINARY)
+	rm -rf bin/
 	rm -f loadtest

@@ -64,7 +64,10 @@
       "Bash(kubectl run:*)",
       "Bash(ls pb/ && git check-ignore -v pb/greeter.pb.go 2>/dev/null || echo \"not ignored\")",
       "Bash(make test:*)",
-      "Bash(make deploy-all:*)"
+      "Bash(make deploy-all:*)",
+      "Bash(git checkout:*)",
+      "Bash(make check-api-paths *)",
+      "Bash(make clean *)"
     ]
   }
 }

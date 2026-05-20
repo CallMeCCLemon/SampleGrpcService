@@ -56,6 +56,10 @@ spec:
           env:
             - name: REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY
               value: /var/lib/registry
+            # Required so `make registry-prune` (and any DELETE /v2/.../manifests/<digest>
+            # call) can actually remove blobs. Without this the registry returns 405.
+            - name: REGISTRY_STORAGE_DELETE_ENABLED
+              value: "true"
           volumeMounts:
             - name: registry-storage
               mountPath: /var/lib/registry
