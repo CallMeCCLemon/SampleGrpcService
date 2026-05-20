@@ -1,0 +1,174 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# This workflow is DISABLED. GitHub Actions only picks up files ending in
+# .yml or .yaml, so this file is dormant. To enable:
+#
+#   1. Stand up the self-hosted runner first (see k8s/templates/optional/runner.yaml
+#      and `make runner-build` / `make runner-deploy`). The workflow targets
+#      `[self-hosted, k8s, greeter]` runners — without one, every job hangs.
+#   2. Rename: `mv .github/workflows/ci.yml.disabled .github/workflows/ci.yml`
+#   3. Commit and push.
+#
+# If you rename project_name in project.yaml, update the `runs-on` label list
+# below and the LABELS env on the runner Deployment in lockstep.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+env:
+  # Use the runner's bundled Node 24 for JavaScript actions instead of letting
+  # them fetch a pinned version from the GitHub toolcache CDN, which is gated
+  # by the cluster's egress rules.
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+# A newer commit on a PR cancels the in-flight CI run for that PR; main runs
+# always serialize so each push tests, builds, and deploys in order without
+# overlap on the single self-hosted runner.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  coverage:
+    name: Tests + Coverage
+    runs-on: [self-hosted, k8s, greeter]
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Go coverage + threshold check
+        run: make coverage-check
+
+      - name: Render coverage summary
+        id: summary
+        run: |
+          set -eu
+          go_total=$(awk '/^total:/ {print $3}' coverage/go-coverage-summary.txt)
+          {
+            echo "## Coverage"
+            echo
+            echo "| Suite | Coverage |"
+            echo "|---|---|"
+            echo "| Go (statements) | ${go_total} |"
+            echo
+            echo "HTML report is attached as the **coverage-html** artifact on this run."
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "go_total=${go_total}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload HTML reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-html
+          path: |
+            coverage/go-coverage.html
+            coverage/go-coverage-summary.txt
+
+      - name: Sticky PR comment
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          GO_TOTAL: ${{ steps.summary.outputs.go_total }}
+        run: |
+          set -eu
+          MARKER='<!-- sample-grpc-coverage-comment -->'
+          BODY=$(cat <<EOF
+          ${MARKER}
+          ## Coverage
+
+          | Suite | Coverage |
+          |---|---|
+          | Go (statements) | ${GO_TOTAL} |
+
+          [View workflow run](${RUN_URL}) · HTML reports are under the **coverage-html** artifact.
+          EOF
+          )
+
+          # If the list call fails (e.g. permissions hiccup), `gh api` writes its
+          # error JSON to stderr and exits non-zero. `|| true` keeps the step
+          # alive so we can fall through to creating a fresh comment, and the
+          # numeric-ID guard prevents PATCHing with a garbage value.
+          existing=$(gh api "repos/${REPO}/issues/${PR_NUMBER}/comments" \
+            --jq ".[] | select(.body | contains(\"${MARKER}\")) | .id" | head -n1 || true)
+          case "${existing}" in
+            ''|*[!0-9]*) gh pr comment "${PR_NUMBER}" --repo "${REPO}" --body "${BODY}" ;;
+            *)           gh api -X PATCH "repos/${REPO}/issues/comments/${existing}" -f body="${BODY}" ;;
+          esac
+
+  build:
+    name: Docker Build
+    needs: coverage
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, k8s, greeter]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Full history so `git rev-parse --short HEAD` in the Makefile works.
+          fetch-depth: 0
+
+      - name: Set up Docker Buildx
+        run: |
+          # Wait for DinD daemon to be ready.
+          timeout 30 sh -c 'until docker info >/dev/null 2>&1; do sleep 1; done'
+          # Pass insecure-registry config to the BuildKit daemon so it can push
+          # to the cluster's plain-HTTP registry. Update the IP here if you
+          # change node_ip_lan in project.yaml.
+          printf '[registry."192.168.1.110:32000"]\n  http = true\n  insecure = true\n' > /tmp/buildkitd.toml
+          docker buildx rm builder 2>/dev/null || true
+          docker buildx create --use --name builder --driver docker-container \
+            --config /tmp/buildkitd.toml
+
+      - name: Build backend image
+        run: make docker-build
+
+      - name: Build web image
+        run: make web-docker-build
+
+  deploy:
+    name: K8s Rollout
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, k8s, greeter]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # The Makefile's docker-build target sed-rewrites k8s/deployment.yaml with
+      # the new image tag; `make deploy` then applies that. Once `make k8s-rollout`
+      # lands (planned alongside the BuildKit cache work), switch to that here.
+      - name: Apply deployment
+        run: make deploy
+
+      - name: Apply web deployment
+        run: make web-deploy
+
+  kong-deploy:
+    name: Deploy Kong infra
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, k8s, greeter]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy Kong
+        run: make kong-deploy

@@ -66,7 +66,8 @@ endif
         coverage coverage-go coverage-check \
         docker-build docker-run deploy deploy-all \
         web-docker-build web-deploy \
-        kong-deploy generate-k8s \
+        kong-deploy generate-k8s generate-runner \
+        runner-build runner-deploy \
         loadtest db-cleanup \
         run clean
 
@@ -263,6 +264,56 @@ generate-k8s:
 	@echo "  project.yaml -> web/.env"
 	@echo "Done. Review changes with 'git diff' and commit if correct."
 	@echo "Note: docker-build will re-pin the image tags in deployment.yaml and web-deployment.yaml."
+
+# Render the self-hosted GitHub Actions runner manifest. Opt-in: templates
+# under k8s/templates/optional/ are deliberately excluded from `generate-k8s`,
+# so the runner is never deployed by accident. Run this only when you actually
+# want a runner in the cluster — see k8s/templates/optional/runner.yaml for
+# the full setup sequence.
+generate-runner:
+	@command -v envsubst >/dev/null 2>&1 || \
+	    { echo "envsubst not found. Install with: brew install gettext"; exit 1; }
+	@export \
+	    PROJECT_NAME="$(PROJECT_NAME)" \
+	    NAMESPACE="$(NAMESPACE)" \
+	    REGISTRY_LAN="$(REGISTRY_LAN)" \
+	    REGISTRY_TS="$(REGISTRY_TS)" \
+	    GITHUB_REPO="$(GITHUB_REPO)"; \
+	envsubst < k8s/templates/optional/runner.yaml > k8s/runner.yaml
+	@echo "  k8s/templates/optional/runner.yaml -> k8s/runner.yaml"
+	@echo "Next steps:"
+	@echo "  1. make runner-build"
+	@echo "  2. kubectl create secret generic github-runner-secret -n $(NAMESPACE) --from-literal=github_token=<PAT>"
+	@echo "  3. make runner-deploy"
+
+# ── CI Runner ─────────────────────────────────────────────────────────────────
+# Build and push the runner image to the cluster registry. The cluster registry
+# serves plain HTTP, so BuildKit needs an explicit insecure entry for both the
+# LAN and Tailscale IPs. The sample-grpc-insecure builder is created on first
+# use and reused thereafter.
+RUNNER_IMAGE := $(REGISTRY_TS)/github-runner:latest
+
+runner-builder:
+	@if ! docker buildx inspect sample-grpc-insecure >/dev/null 2>&1; then \
+	    echo "Creating sample-grpc-insecure buildx builder…"; \
+	    TMP=$$(mktemp); \
+	    printf '[registry."%s"]\n  http = true\n  insecure = true\n[registry."%s"]\n  http = true\n  insecure = true\n' \
+	        "$(REGISTRY_LAN)" "$(REGISTRY_TS)" > $$TMP; \
+	    docker buildx create --name sample-grpc-insecure --driver docker-container --config $$TMP; \
+	    rm -f $$TMP; \
+	fi
+
+runner-build: runner-builder
+	docker buildx build --builder sample-grpc-insecure --platform linux/amd64 \
+	    -t $(RUNNER_IMAGE) \
+	    --push \
+	    docker/runner/
+
+# Apply the runner Deployment + RBAC. Requires `make generate-runner` first
+# so k8s/runner.yaml exists.
+runner-deploy:
+	@[ -f k8s/runner.yaml ] || { echo "k8s/runner.yaml missing — run 'make generate-runner' first"; exit 1; }
+	kubectl apply -f k8s/runner.yaml
 
 loadtest:
 	go run ./cmd/loadtest -addr $(GRPC_ADDR) -concurrency 20 -duration 30s

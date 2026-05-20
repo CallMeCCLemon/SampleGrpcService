@@ -1,0 +1,159 @@
+# Auto-generated from k8s/templates/optional/runner.yaml
+# Edit project.yaml and run 'make generate-runner' to regenerate. Do not edit by hand.
+#
+# Self-hosted GitHub Actions runner.
+#
+# This template is OPT-IN. `make generate-k8s` deliberately does not render it
+# (templates under k8s/templates/optional/ are excluded). Render with:
+#
+#   make generate-runner
+#
+# Then build, push, and deploy:
+#
+#   make runner-build
+#   kubectl create secret generic github-runner-secret \
+#     --namespace ${NAMESPACE} \
+#     --from-literal=github_token=<your-fine-grained-PAT>
+#   make runner-deploy
+#
+# Uses Docker-in-Docker (DinD) because the cluster runs containerd and has no
+# host Docker socket. A privileged `docker:dind` sidecar provides the daemon;
+# the runner connects via a shared emptyDir socket.
+#
+# The runner registers with GitHub on startup and deregisters cleanly on
+# shutdown (SIGTERM), so restarting the Pod does not leave orphan runners.
+
+# ── ServiceAccount + RBAC ─────────────────────────────────────────────────────
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: github-runner
+  namespace: ${NAMESPACE}
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: github-runner-${NAMESPACE}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - kind: ServiceAccount
+    name: github-runner
+    namespace: ${NAMESPACE}
+
+# ── DinD daemon config — allows pushing to the HTTP in-cluster registry ───────
+
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dind-daemon-config
+  namespace: ${NAMESPACE}
+data:
+  daemon.json: |
+    {
+      "insecure-registries": ["${REGISTRY_LAN}", "${REGISTRY_TS}"],
+      "experimental": true
+    }
+
+# ── Runner Deployment ─────────────────────────────────────────────────────────
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: github-runner
+  namespace: ${NAMESPACE}
+  labels:
+    app: github-runner
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: github-runner
+  template:
+    metadata:
+      labels:
+        app: github-runner
+    spec:
+      serviceAccountName: github-runner
+      nodeSelector:
+        kubernetes.io/os: linux
+
+      containers:
+        # ── Docker-in-Docker daemon ──────────────────────────────────────────
+        - name: dind
+          image: docker:dind
+          securityContext:
+            privileged: true
+          env:
+            # Disable TLS — runner connects via the shared Unix socket.
+            - name: DOCKER_TLS_CERTDIR
+              value: ""
+          volumeMounts:
+            - name: docker-socket
+              mountPath: /var/run
+            - name: dind-daemon-config
+              mountPath: /etc/docker
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "4"
+              memory: "6Gi"
+
+        # ── GitHub Actions runner ────────────────────────────────────────────
+        - name: runner
+          image: ${REGISTRY_LAN}/github-runner:latest
+          imagePullPolicy: Always
+          env:
+            - name: REPO_URL
+              value: "${GITHUB_REPO}"
+            - name: ACCESS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: github-runner-secret
+                  key: github_token
+            - name: RUNNER_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            # Labels must match the workflow's `runs-on` list. Keep PROJECT_NAME
+            # consistent across project.yaml, the workflow file, and here.
+            - name: LABELS
+              value: "self-hosted,k8s,${PROJECT_NAME}"
+            - name: RUNNER_WORKDIR
+              value: "/tmp/runner"
+            - name: DOCKER_HOST
+              value: "unix:///var/run/docker.sock"
+            # Use in-cluster ServiceAccount for kubectl (no kubeconfig file needed).
+            - name: KUBECONFIG
+              value: ""
+          volumeMounts:
+            - name: docker-socket
+              mountPath: /var/run
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "256Mi"
+            limits:
+              cpu: "2"
+              memory: "2Gi"
+
+      volumes:
+        - name: docker-socket
+          emptyDir: {}
+        - name: dind-daemon-config
+          configMap:
+            name: dind-daemon-config
+
+      # Allow time for the current job to finish and the runner to deregister.
+      terminationGracePeriodSeconds: 30
