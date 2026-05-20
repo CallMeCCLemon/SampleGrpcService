@@ -79,7 +79,8 @@
       "Bash(npm install *)",
       "Bash(npm run *)",
       "Bash(make -n registry-show)",
-      "Bash(make -n registry-prune)"
+      "Bash(make -n registry-prune)",
+      "Bash(make -n test-integration)"
     ]
   }
 }

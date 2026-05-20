@@ -205,7 +205,7 @@ make web-docker-build && make web-deploy
 ```bash
 make              # Regenerate proto + build Go binary
 make test         # Fast tests (sqlmock + gRPC integration, no Docker)
-make test-all     # All tests including testcontainers integration suite
+make test-integration  # All tests including testcontainers integration suite
 make run          # Run gRPC server locally
 cd web && npm run dev   # Run web app locally (proxies /api/* to Kong)
 ```

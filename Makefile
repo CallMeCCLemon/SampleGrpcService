@@ -62,7 +62,7 @@ else
 endif
 
 # ── Targets ───────────────────────────────────────────────────────────────────
-.PHONY: all build test test-all proto web-proto check-api-paths \
+.PHONY: all build test test-integration proto web-proto check-api-paths \
         lint lint-install lint-new lint-fix \
         coverage coverage-go coverage-check \
         docker-build docker-run deploy deploy-all \
@@ -112,7 +112,9 @@ build:
 test:
 	go test -v ./...
 
-test-all:
+# test-integration runs the full suite including testcontainers-backed
+# integration tests (-tags=integration). Requires Docker.
+test-integration:
 	DOCKER_HOST=$$(docker context inspect --format '{{.Endpoints.docker.Host}}') \
 	    TESTCONTAINERS_RYUK_DISABLED=true \
 	    go test -v -tags=integration ./...
