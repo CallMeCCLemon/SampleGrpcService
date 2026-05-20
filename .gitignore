@@ -1,7 +1,7 @@
 # Executables
 bin/
-server
-loadtest
+/server
+/loadtest
 
 # IDE Files
 .idea

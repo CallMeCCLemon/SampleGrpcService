@@ -41,7 +41,7 @@ func New(ctx context.Context, connStr string) (*DB, error) {
 // Close releases the underlying database connection.
 func (d *DB) Close() {
 	if sqlDB, err := d.orm.DB(); err == nil {
-		sqlDB.Close()
+		_ = sqlDB.Close()
 	}
 }
 

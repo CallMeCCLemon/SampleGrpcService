@@ -27,9 +27,9 @@ func startTestServer(t *testing.T) string {
 	pb.RegisterGreeterServer(s, &server{db: &noopDB{}})
 
 	go func() {
-		if err := s.Serve(lis); err != nil {
-			// server stopped, expected on cleanup
-		}
+		// Serve blocks until s.Stop is called in t.Cleanup; the returned error
+		// is expected (grpc.ErrServerStopped) and intentionally discarded.
+		_ = s.Serve(lis)
 	}()
 	t.Cleanup(s.Stop)
 

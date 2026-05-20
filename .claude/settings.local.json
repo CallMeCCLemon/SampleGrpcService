@@ -67,7 +67,11 @@
       "Bash(make deploy-all:*)",
       "Bash(git checkout:*)",
       "Bash(make check-api-paths *)",
-      "Bash(make clean *)"
+      "Bash(make clean *)",
+      "Bash(golangci-lint --version)",
+      "Bash(make lint *)",
+      "Bash(go vet *)",
+      "Bash(git check-ignore *)"
     ]
   }
 }

@@ -59,6 +59,7 @@ endif
 
 # ── Targets ───────────────────────────────────────────────────────────────────
 .PHONY: all build test test-all proto web-proto \
+        lint lint-install lint-new lint-fix \
         docker-build docker-run deploy deploy-all \
         web-docker-build web-deploy \
         kong-deploy generate-k8s \
@@ -93,6 +94,28 @@ test-all:
 	DOCKER_HOST=$$(docker context inspect --format '{{.Endpoints.docker.Host}}') \
 	    TESTCONTAINERS_RYUK_DISABLED=true \
 	    go test -v -tags=integration ./...
+
+# ── Lint ──────────────────────────────────────────────────────────────────────
+# golangci-lint config lives in .golangci.yml.
+
+# Install golangci-lint if not present. Uses brew (the cluster CI runner image
+# can install via `go install` instead — adjust there if needed).
+lint-install:
+	@which golangci-lint >/dev/null 2>&1 || \
+	    (echo "Installing golangci-lint…" && brew install golangci-lint)
+
+# Run all enabled linters across the whole codebase.
+lint: lint-install
+	golangci-lint run ./...
+
+# Run linters only on lines changed since the last commit. Use this from a
+# pre-commit hook to gate only on newly introduced issues.
+lint-new: lint-install
+	golangci-lint run --new-from-rev=HEAD ./...
+
+# Auto-fix formatting and simple issues.
+lint-fix: lint-install
+	golangci-lint run --fix ./...
 
 docker-build:
 	docker buildx build --platform linux/amd64,linux/arm64 \

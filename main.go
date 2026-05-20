@@ -102,7 +102,7 @@ func main() {
 	defer database.Close()
 	slog.Info("database connected and schema ready")
 
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+	lis, err := (&net.ListenConfig{}).Listen(ctx, "tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
 		logger.Fatal("failed to listen", "port", port, "error", err)
 	}

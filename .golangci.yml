@@ -1,0 +1,45 @@
+version: "2"
+
+linters:
+  # Enable a curated set. Comment a linter out to disable it;
+  # uncomment to add it back. Run `golangci-lint linters` to see all options.
+  enable:
+    - errcheck       # unchecked errors
+    - govet          # go vet checks
+    - ineffassign    # assignments whose result is never used
+    - staticcheck    # comprehensive static analysis
+    - unused         # unused code
+    - bodyclose      # http response body close checks
+    - noctx          # http requests without context
+    - misspell       # common typos in comments/strings
+    - revive         # drop-in replacement for golint with rules config below
+
+  settings:
+    revive:
+      rules:
+        - name: exported
+          disabled: true   # doc comments on every export are noisy for a sample service
+        - name: unexported-return
+          disabled: false
+        - name: package-comments
+          disabled: true
+  exclusions:
+    # Don't flag test files for most style rules.
+    rules:
+      - path: _test\.go
+        linters:
+          - errcheck
+          - bodyclose
+          - noctx
+      # Generated protobuf code shouldn't be linted.
+      - path: pb/
+        linters:
+          - errcheck
+          - govet
+          - staticcheck
+          - unused
+          - revive
+
+formatters:
+  enable:
+    - goimports      # import grouping / formatting
