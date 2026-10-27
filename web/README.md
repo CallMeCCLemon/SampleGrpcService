@@ -84,9 +84,8 @@ cd web && npx tsc --noEmit
 # Step 3 — run Go tests to catch server-side breakage
 make test
 
-# Step 4 — rebuild and redeploy both services
-make docker-build    && make deploy
-make web-docker-build && make web-deploy
+# Step 4 — rebuild and roll out both services (CI does this on push to main)
+make release
 ```
 
 > If `tsc --noEmit` fails after `make web-proto`, it means a field or type used
@@ -103,8 +102,8 @@ make web-docker-build && make web-deploy
 
 ```bash
 # From the repo root:
-make web-docker-build   # builds multi-platform image, pushes, pins tag in k8s/web-deployment.yaml
-make web-deploy         # kubectl apply -f k8s/web-deployment.yaml
+make web-docker-build   # builds multi-platform image, pushes :VERSION-SHA and :latest
+make k8s-rollout        # points both deployments at the :VERSION-SHA tags
 ```
 
 The Docker build passes `VITE_GITHUB_REPO` as a build arg (sourced from `project.yaml` via the Makefile) and runs `tsc -b && vite build` — a type error from a proto mismatch will fail the build.

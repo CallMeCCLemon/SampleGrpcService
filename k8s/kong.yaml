@@ -10,7 +10,10 @@ metadata:
   namespace: grpc-demo
 plugin: grpc-gateway
 config:
-  proto: /etc/kong/protos/greeter.proto
+  # The shared gateway mounts each project's protos in its own subdirectory so
+  # same-named files (every project has an auth.proto) cannot collide. Every
+  # HTTP route must be reachable from this file's import graph.
+  proto: /etc/kong/protos/greeter/greeter.proto
 
 ---
 # Routes inbound HTTP traffic from Kong's proxy to the gRPC service.
@@ -36,7 +39,10 @@ metadata:
 spec:
   ingressClassName: kong
   rules:
-    - http:
+    # Host-scoped so traffic for other projects' hostnames on the shared
+    # gateway cannot match this project's API prefix.
+    - host: grpc-demo.latentlab.cc
+      http:
         paths:
           - path: /greeter/api
             pathType: Prefix

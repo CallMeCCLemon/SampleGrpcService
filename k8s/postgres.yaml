@@ -2,7 +2,7 @@
 # Edit project.yaml and run 'make generate-k8s' to regenerate. Do not edit by hand.
 ---
 # CloudNativePG Cluster for the gRPC backend service.
-# Apply after the CNPG operator is installed (scripts/install-cnpg.sh).
+# Requires the cluster-wide CNPG operator, installed by the platform repo.
 #
 # CNPG automatically creates a secret named "greeter-db-app" in the
 # grpc-demo namespace containing the connection URI and credentials.

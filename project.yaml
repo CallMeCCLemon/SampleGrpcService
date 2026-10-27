@@ -1,13 +1,13 @@
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # project.yaml — single source of truth for all project-specific configuration.
 #
-# When reusing this project as a template:
-#   1. Edit the values below.
-#   2. Run `make generate-k8s` to regenerate the k8s manifests from k8s/templates/.
-#   3. Rename proto/greeter.proto to proto/<project_name>.proto and update
-#      its package and service declarations to match your new project name.
-#   4. Run `make proto && make web-proto` to regenerate Go and TypeScript stubs.
-#   5. Build and deploy: `make docker-build && make deploy`.
+# When starting a new project from this template, run
+#   make init NAME=<project_name> REPO=https://github.com/<org>/<repo>
+# which rewrites the identity values below, renames the protos and Go module,
+# and regenerates everything. See README "Starting a new project".
+#
+# After any later edit here, run `make generate-k8s` to re-render k8s/*.yaml
+# and web/.env.
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 # ── Project Identity ──────────────────────────────────────────────────────────
@@ -96,6 +96,8 @@ grpc_nodeport: 30051
 
 # kong_nodeport: NodePort for the Kong API Gateway (HTTP/JSON → gRPC transcoding).
 #   Used by: the Vite dev proxy, curl tests, and any HTTP client hitting the API.
+#   Shared by every project on the cluster's single Kong gateway; owned by the
+#   platform repo's kong-values.yaml, not by this project.
 kong_nodeport: 30080
 
 # web_nodeport: NodePort for the React web front-end (Nginx).

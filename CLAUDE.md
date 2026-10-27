@@ -17,8 +17,11 @@ Always prefer the project's `make` targets over running `go`, `npm`, `golangci-l
 | Build the Go server | `make build` (output: `bin/server`) |
 | Regenerate Go gRPC stubs | `make proto` |
 | Regenerate TypeScript gRPC stubs | `make web-proto` |
+| Rename the template for a new project | `make init NAME=<name> REPO=<github url>` |
 | Run fast Go tests (no Docker) | `make test` |
-| Run all tests incl. testcontainers | `make test-integration` |
+| Run integration-tagged tests (Docker) | `make test-integration` |
+| Type-check integration tests (no Docker) | `make vet-integration` |
+| Build / lint the frontend | `make web-build` / `make web-lint` |
 | Full lint sweep | `make lint` |
 | Lint only newly changed lines | `make lint-new` (used by pre-commit hook) |
 | Auto-fix formatting + simple issues | `make lint-fix` |
@@ -28,16 +31,21 @@ Always prefer the project's `make` targets over running `go`, `npm`, `golangci-l
 | Render k8s manifests from templates | `make generate-k8s` |
 | Build + push backend image | `make docker-build` |
 | Build + push web image | `make web-docker-build` |
-| Roll out backend | `make deploy` |
-| Roll out web | `make web-deploy` |
-| Refresh Kong proto configmaps + rollout | `make kong-deploy` (expensive — only on proto/Kong changes) |
-| Inspect / prune the cluster registry | `make registry-show` / `make registry-prune` |
+| Roll out both images at the current SHA | `make k8s-rollout` (or `make release` to build + roll out) |
+| Bootstrap-apply manifests (`:latest`) | `make deploy` / `make web-deploy` / `make deploy-all` |
+| Refresh this project's Kong proto configmap + Ingress | `make kong-deploy` (restarts Kong only if protos changed) |
+| Print the platform kong-values block for this project | `make kong-register` |
+| Inspect / prune this project's registry tags | `make registry-show` / `make registry-prune` |
 
 Never call `go test ./...`, `go build`, `golangci-lint run`, `protoc`, or `kubectl apply` directly. If a target is missing for something you need, add it to the Makefile.
 
 ## Single source of truth: `project.yaml`
 
 Project-specific values (names, namespace, IPs, NodePorts, image names, OAuth client ID, coverage floors) live in `project.yaml`. After editing, run `make generate-k8s` to re-render `k8s/*.yaml` and `web/.env`. Never edit generated files directly — they are clobbered on the next render.
+
+## Shared platform: do not manage it from here
+
+The Kong Helm release and `kong-values.yaml`, the container registry and its garbage collection, the org CI runner, and the CNPG operator are shared by every project on the cluster and owned by the platform repo (currently RiftboundEngine). Never run `helm upgrade kong`, apply registry or runner manifests, or run registry GC from this repo. To change what Kong mounts, edit the platform repo's `k8s/templates/kong-values.yaml` (`make kong-register` prints this project's block).
 
 ## Routing model: do not strip the API prefix
 
@@ -49,7 +57,9 @@ If you change `api_prefix` in `project.yaml`, you must:
 2. Run `make proto && make web-proto`.
 3. Update the frontend's hard-coded `/greeter/api` references in `web/src/api/auth.ts` and `web/src/App.tsx`.
 4. Update the Vite dev proxy in `web/vite.config.ts` and the production proxy in `web/nginx.conf`.
-5. Run `make kong-deploy` to push the new configmap.
+5. Run `make generate-k8s` (the Ingress path comes from `api_prefix`) and `make kong-deploy`.
+
+The Kong Ingress is host-scoped to `public_domain`, so anything proxying to Kong must forward that Host header (`web/nginx.conf` and `web/vite.config.ts` already do). Kong's grpc-gateway plugin has further constraints (umbrella-proto imports, no repeated GET query params); see `k8s/README.md` "Kong gateway constraints".
 
 ## Common workflows
 
@@ -60,7 +70,7 @@ make proto              # Go stubs
 make web-proto          # TypeScript stubs
 make check-api-paths    # verify annotations include the prefix
 make test               # ensure nothing broke
-make kong-deploy        # only if HTTP routes changed; expensive
+make kong-deploy        # CI runs this on main; restarts Kong only if protos changed
 ```
 
 ### Adding a new auth-gated RPC
@@ -86,7 +96,7 @@ For one-off admin requests against the cluster, mint an admin JWT with `scripts/
 
 ## Pre-commit hook
 
-`make hooks-install` (once per clone) points git at `.githooks/`, which runs `make lint-new` + `go build ./...` before every commit. Skip with `--no-verify` only for emergencies.
+`make hooks-install` (once per clone) points git at `.githooks/`, which runs `make lint-new`, `make build`, and `make vet-integration` before every commit, plus `make web-build` and `make web-lint` when the commit touches `web/`. Skip with `--no-verify` only for emergencies.
 
 ## Code commenting style
 

@@ -1,0 +1,50 @@
+name: Reclaim DinD disk
+description: >
+  Bounded reclaim of the runner pod's Docker-in-Docker storage, keeping the
+  warm build cache. Run it at the end of every job that talks to the daemon.
+
+# WHY THIS IS AN ACTION RATHER THAN A STEP
+#
+# The DinD daemon's storage is an emptyDir on the runner Pod, capped at 8Gi
+# (k8s/runner.yaml in the platform repo). It is PER POD, so a reclaim
+# only ever frees the pod it ran on: pruning in the build job does nothing for
+# the pod that just filled its cache running integration tests. Every job that
+# touches Docker has to reclaim its own, which means the same block in several
+# places, which means one copy that drifts. Hence one action, used everywhere.
+#
+# Overflowing the cap gets the pod evicted mid-job, which surfaces as a runner
+# that "lost communication with the server" and a step that exits 143. That is
+# the same shape as the eviction the build caches used to cause, and it is worth
+# recognising: check `kubectl get events -A | grep -i evicted` for
+# which limit was hit before assuming a test really failed.
+
+runs:
+  using: composite
+  steps:
+    - name: Reclaim DinD disk (bounded, keeps warm cache)
+      shell: bash
+      run: |
+        set -x
+        # Deliberately not a blanket `prune -af`. Each of these targets
+        # something that grows without bound while leaving what makes the next
+        # run fast:
+        #
+        #   containers  stopped testcontainers the reaper did not collect, plus
+        #               anything left "Created" by a run that died mid-step.
+        #   volumes     testcontainer data dirs, and the cache volume a
+        #               docker-container buildx builder keeps (2GB on a runner
+        #               when this was written, reclaimed by nothing else).
+        #   images      dangling intermediates only, so the base images
+        #               (golang, node) that layer caching depends on stay.
+        #   builder     build cache above the keep-storage floor, for the
+        #               default builder and for a named one if this repo makes
+        #               one -- `docker builder prune` only ever prunes the
+        #               builder it is pointed at.
+        docker container prune -f || true
+        docker volume prune -f || true
+        docker image prune -f || true
+        docker builder prune -f --keep-storage=4GB || true
+        for b in $(docker buildx ls --format '{{.Name}}' 2>/dev/null | grep -v '^default$' || true); do
+          docker builder prune -f --builder "$b" --keep-storage=2GB || true
+        done
+        docker system df

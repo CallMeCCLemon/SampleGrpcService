@@ -4,7 +4,7 @@
 
 import { GoogleLogin } from '@react-oauth/google'
 import type { CredentialResponse } from '@react-oauth/google'
-import { useAuth } from './AuthContext'
+import { useAuth } from './useAuth'
 import { loginWithGoogle } from '../api/auth'
 
 export function AuthBar() {

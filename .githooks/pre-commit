@@ -15,5 +15,21 @@ cd "$(git rev-parse --show-toplevel)"
 # what's actually about to be committed.
 make lint-new
 
-# Catch compile errors before they hit CI.
-go build ./...
+# Catch Go compile errors (server + every cmd/* tool) before they hit CI.
+make build
+
+# Integration-tagged test files are invisible to `make build` and lint; vet
+# type-checks them without Docker.
+make vet-integration
+
+# Frontend checks only run when the commit touches web/. web-build is tsc +
+# vite (the same step the web image runs); eslint catches what tsc does not.
+if git diff --cached --name-only --diff-filter=ACMR | grep -q '^web/'; then
+	if [ -d web/node_modules ]; then
+		make web-build
+		make web-lint
+	else
+		echo "pre-commit: web/node_modules not present — skipping web checks."
+		echo "             run 'npm --prefix web ci' once so this gate runs."
+	fi
+fi

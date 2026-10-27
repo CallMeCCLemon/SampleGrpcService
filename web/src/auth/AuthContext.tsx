@@ -8,34 +8,24 @@
 // JWT is stored in localStorage under a project-scoped key so multiple apps
 // on the same origin don't collide.
 
-import { createContext, useContext, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { User } from '../generated/auth'
 import { AuthError, getCurrentUser } from '../api/auth'
+import { AuthContext } from './useAuth'
 
 const STORAGE_KEY = 'sample_grpc_session_jwt'
-
-interface AuthContextValue {
-  user: User | null
-  jwt: string | null
-  loading: boolean
-  sessionExpired: boolean
-  signIn: (jwt: string, user: User) => void
-  signOut: () => void
-}
-
-const AuthContext = createContext<AuthContextValue | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [jwt, setJwt] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
+  // Only a cached JWT needs validating, so loading starts false without one.
+  const [loading, setLoading] = useState(() => localStorage.getItem(STORAGE_KEY) !== null)
   const [sessionExpired, setSessionExpired] = useState(false)
 
   useEffect(() => {
     const cached = localStorage.getItem(STORAGE_KEY)
     if (!cached) {
-      setLoading(false)
       return
     }
     getCurrentUser(cached)
@@ -71,12 +61,4 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       {children}
     </AuthContext.Provider>
   )
-}
-
-export function useAuth(): AuthContextValue {
-  const ctx = useContext(AuthContext)
-  if (!ctx) {
-    throw new Error('useAuth must be used within an AuthProvider')
-  }
-  return ctx
 }

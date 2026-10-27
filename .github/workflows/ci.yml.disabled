@@ -1,15 +1,16 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# This workflow is DISABLED. GitHub Actions only picks up files ending in
-# .yml or .yaml, so this file is dormant. To enable:
+# Dormant in the template: GitHub only picks up files ending in .yml/.yaml.
+# `make init` renames this to ci.yml once the project has its own names, so a
+# freshly generated repo never deploys over the template's live resources.
 #
-#   1. Stand up the self-hosted runner first (see k8s/templates/optional/runner.yaml
-#      and `make runner-build` / `make runner-deploy`). The workflow targets
-#      `[self-hosted, k8s, greeter]` runners — without one, every job hangs.
-#   2. Rename: `mv .github/workflows/ci.yml.disabled .github/workflows/ci.yml`
-#   3. Commit and push.
+# CI runs on the shared self-hosted runner registered to the GitHub org (labels
+# `self-hosted, k8s`, managed by the platform repo's k8s/runner.yaml). The repo
+# must live in that org, and the org runner group must allow it; see README
+# "GitHub setup".
 #
-# If you rename project_name in project.yaml, update the `runs-on` label list
-# below and the LABELS env on the runner Deployment in lockstep.
+# Before the first push to main, the cluster needs this project's namespace,
+# database, secrets, and Kong mount (README "First deploy"). k8s-rollout will
+# create the Deployments if they are missing, but not the rest.
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: CI
@@ -27,8 +28,9 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 # A newer commit on a PR cancels the in-flight CI run for that PR; main runs
-# always serialize so each push tests, builds, and deploys in order without
-# overlap on the single self-hosted runner.
+# always serialize so each push tests, builds, and deploys in order. The
+# runner is shared across every repo in the org, so jobs may queue behind
+# other projects.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -36,7 +38,7 @@ concurrency:
 jobs:
   coverage:
     name: Tests + Coverage
-    runs-on: [self-hosted, k8s, greeter]
+    runs-on: [self-hosted, k8s]
     permissions:
       contents: read
       pull-requests: write
@@ -84,7 +86,7 @@ jobs:
           GO_TOTAL: ${{ steps.summary.outputs.go_total }}
         run: |
           set -eu
-          MARKER='<!-- sample-grpc-coverage-comment -->'
+          MARKER='<!-- coverage-comment -->'
           BODY=$(cat <<EOF
           ${MARKER}
           ## Coverage
@@ -108,11 +110,41 @@ jobs:
             *)           gh api -X PATCH "repos/${REPO}/issues/comments/${existing}" -f body="${BODY}" ;;
           esac
 
-  build:
-    name: Docker Build
-    needs: coverage
+  integration-tests:
+    name: Integration tests
+    runs-on: [self-hosted, k8s]
+    permissions:
+      contents: read
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Type-checks the -tags=integration files before paying for Docker.
+      - name: Vet integration tests
+        run: make vet-integration
+
+      - name: Wait for Docker daemon
+        run: timeout 30 sh -c 'until docker info >/dev/null 2>&1; do sleep 1; done'
+
+      - name: Run integration tests
+        run: make test-integration
+
+      # The runner's Docker storage is a capped per-pod emptyDir; overflowing
+      # it evicts the pod mid-job. See the action.
+      - name: Reclaim DinD disk
+        if: always()
+        uses: ./.github/actions/reclaim-dind
+
+  # The two image builds run as separate jobs so they land on whichever
+  # runners are free. They do not wait for tests; `deploy` is the gate.
+  build-backend:
+    name: Docker Build (backend)
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: [self-hosted, k8s, greeter]
+    runs-on: [self-hosted, k8s]
 
     steps:
       - name: Checkout
@@ -123,27 +155,20 @@ jobs:
 
       - name: Set up Docker Buildx
         run: |
-          # Wait for DinD daemon to be ready.
           timeout 30 sh -c 'until docker info >/dev/null 2>&1; do sleep 1; done'
-          # Pass insecure-registry config to the BuildKit daemon so it can push
-          # to the cluster's plain-HTTP registry. Update the IP here if you
-          # change node_ip_lan in project.yaml.
-          printf '[registry."192.168.1.110:32000"]\n  http = true\n  insecure = true\n' > /tmp/buildkitd.toml
-          docker buildx rm builder 2>/dev/null || true
-          docker buildx create --use --name builder --driver docker-container \
-            --config /tmp/buildkitd.toml
+          make ci-builder
 
       - name: Build backend image
         run: make docker-build
 
-      - name: Build web image
-        run: make web-docker-build
+      - name: Reclaim DinD disk
+        if: always()
+        uses: ./.github/actions/reclaim-dind
 
-  deploy:
-    name: K8s Rollout
-    needs: build
+  build-web:
+    name: Docker Build (web)
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: [self-hosted, k8s, greeter]
+    runs-on: [self-hosted, k8s]
 
     steps:
       - name: Checkout
@@ -151,20 +176,49 @@ jobs:
         with:
           fetch-depth: 0
 
-      # The Makefile's docker-build target sed-rewrites k8s/deployment.yaml with
-      # the new image tag; `make deploy` then applies that. Once `make k8s-rollout`
-      # lands (planned alongside the BuildKit cache work), switch to that here.
-      - name: Apply deployment
-        run: make deploy
+      - name: Set up Docker Buildx
+        run: |
+          timeout 30 sh -c 'until docker info >/dev/null 2>&1; do sleep 1; done'
+          make ci-builder
 
-      - name: Apply web deployment
-        run: make web-deploy
+      - name: Build web image
+        run: make web-docker-build
 
-  kong-deploy:
-    name: Deploy Kong infra
-    needs: build
+      - name: Reclaim DinD disk
+        if: always()
+        uses: ./.github/actions/reclaim-dind
+
+  deploy:
+    name: K8s Rollout
+    # The real gate: nothing untested reaches the cluster.
+    needs: [build-backend, build-web, coverage, integration-tests]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: [self-hosted, k8s, greeter]
+    runs-on: [self-hosted, k8s]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # `kubectl set image` with the SHA tag forces a real rollout every
+      # commit; applying the :latest-pinned manifest would be a no-op.
+      - name: Roll out deployments
+        run: make k8s-rollout
+
+      # Runs after the rollout so the live-tag lookup sees the new image.
+      - name: Prune stale registry tags (project-scoped)
+        run: make registry-prune
+
+  # Only refreshes this project's proto configmap + Ingress, and only restarts
+  # Kong when the protos changed. Never runs `helm upgrade kong`: the Helm
+  # release is shared platform infrastructure. Needs deploy because
+  # deployment.yaml creates the namespace kong.yaml's resources live in.
+  kong-deploy:
+    name: Deploy Kong routes
+    needs: [deploy]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, k8s]
 
     steps:
       - name: Checkout

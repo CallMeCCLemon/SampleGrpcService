@@ -1,6 +1,6 @@
 # SampleGrpcProject
 
-A testbed — and reusable template — for wiring together a Go-based gRPC service, a PostgreSQL database, an HTTP-to-gRPC gateway using Kong, Google sign-in via JWT, and a React web front-end, all running on a self-hosted Kubernetes cluster exposed via a Cloudflare tunnel.
+A GitHub template repository for new services: run `make init` and you get a Go-based gRPC service, a PostgreSQL database, an HTTP-to-gRPC gateway using Kong, Google sign-in via JWT, and a React web front-end, all running on a self-hosted Kubernetes cluster exposed via a Cloudflare tunnel.
 
 ## Architecture
 
@@ -81,12 +81,11 @@ SampleGrpcProject/
 │   │   └── generated/       # ts-proto output (committed)
 ├── k8s/
 │   ├── templates/           # Parameterized manifest templates (envsubst variables)
-│   │   └── optional/        # Opt-in templates (e.g. runner.yaml) — not auto-rendered
 │   └── *.yaml               # Generated manifests — run `make generate-k8s` to refresh
-├── docker/runner/           # Self-hosted GitHub Actions runner Dockerfile
-├── .github/workflows/       # CI workflow (ci.yml.disabled — rename to enable)
+├── .github/workflows/       # CI workflow (ci.yml.disabled until `make init`)
+├── .github/actions/         # reclaim-dind: bounded Docker cleanup on the shared runner
 ├── .githooks/               # Pre-commit hook (`make hooks-install` to enable)
-├── scripts/                 # Cluster setup + admin token mint
+├── scripts/                 # init-project.sh (template rename) + admin token mint
 ├── main.go                  # gRPC server entry point (interceptor + service registration)
 ├── Makefile
 ├── .golangci.yml            # Linter config
@@ -158,107 +157,109 @@ Required env vars (read from the `greeter-auth` k8s secret — see `k8s/README.m
 | Database | PostgreSQL via CNPG operator on k8s |
 | Cluster | k8s (multi-node, self-hosted) |
 | Tunnel | Cloudflare cloudflared |
-| CI (optional) | GitHub Actions on a self-hosted DinD runner |
+| CI | GitHub Actions on the shared org self-hosted DinD runner |
 
-## Using This as a Template
+## Shared platform
 
-All project-specific values (names, namespace, IPs, ports, domain, OAuth client ID, coverage floors) live in `project.yaml`. To reuse this project for a new service:
+Every project built from this template is a **tenant** of one shared cluster platform. These pieces exist once per cluster and are owned by the platform repo (currently [RiftboundEngine](https://github.com/latentlab-cc/Riftbound-Engine)), not by this repo:
 
-### 1. Update `project.yaml`
+| Shared piece | Where it lives in the platform repo |
+|---|---|
+| Kong Helm release + `kong-values.yaml` (proto mounts for every project) | `k8s/templates/kong-values.yaml`, `make kong-deploy` |
+| Container registry (`registry-system`, NodePort 32000) + registry GC | `k8s/registry.yaml`, `scripts/setup-registry.sh`, `make registry-prune` |
+| Org-wide self-hosted GitHub Actions runner (`self-hosted, k8s`) | `k8s/runner.yaml`, `docker/runner/` |
+| CNPG operator | `scripts/install-cnpg.sh` |
+| MinIO (object storage) | `k8s/minio-values.yaml` |
 
-Edit every value:
+A project only owns its own namespace, Deployments, Postgres cluster, tunnel, its `<project>-proto` configmap, and its host-scoped Kong Ingress. `make kong-deploy` here never runs `helm upgrade kong`: doing that from a project overwrote other projects' proto mounts.
 
-```yaml
-project_name: myservice            # used for k8s resource names, DB name, proto configmap
-namespace: my-namespace            # k8s namespace
-image_name: my-service             # backend container image name
-web_image_name: my-service-web     # web container image name
-public_domain: myservice.example.com
-tunnel_secret_name: my-tunnel-creds
-github_repo: https://github.com/you/your-repo
-google_client_id: <id>.apps.googleusercontent.com   # leave "" to ship without sign-in
-node_ip_lan: 192.168.x.x
-node_ip_tailscale: 100.x.x.x
-registry_port: 32000
-api_prefix: /myservice/api         # must match proto HTTP annotations
-grpc_nodeport: 30051
-kong_nodeport: 30080
-web_nodeport: 30090
-coverage_global_min: 0.0           # raise as the test suite grows
-coverage_package_min: 0.0
-coverage_exempt_patterns:
-```
+## Starting a new project
 
-### 2. Regenerate k8s manifests and web config
+### 1. Create the repo from the template
+
+On GitHub: **Use this template → Create a new repository**, owner **latentlab-cc** (the shared runner only serves repos in that org). Or from the CLI:
 
 ```bash
-make generate-k8s
+gh repo create latentlab-cc/<Repo> --template CallMeCCLemon/SampleGrpcService --private --clone
+cd <Repo>
 ```
 
-This renders all `k8s/templates/*.yaml` → `k8s/*.yaml` and writes `web/.env` with `VITE_GITHUB_REPO` and `VITE_GOOGLE_CLIENT_ID`.
-
-### 3. Rename and update the protos
+### 2. Rename everything
 
 ```bash
-mv proto/greeter.proto proto/<project_name>.proto
-# Edit:
-#   - package name
-#   - service name
-#   - every HTTP annotation to start with your new api_prefix
-#   - `import public "auth.proto";` at the top (umbrella for Kong)
-make check-api-paths   # catch any annotations missing the prefix
-make proto             # Go stubs
-make web-proto         # TypeScript stubs
+make init NAME=<project_name> REPO=https://github.com/latentlab-cc/<Repo>
+# optional: MODULE=<go module path>  (defaults to github.com/latentlab-cc/<Repo>)
 ```
 
-### 4. Update app code
+`NAME` is lowercase with no hyphens. It becomes the k8s names, namespace, DB name, proto package, the `/<name>/api` prefix, and `<name>.latentlab.cc`. `make init`:
 
-- `web/src/App.tsx` — update endpoint paths and UI copy
-- `web/src/api/auth.ts` — update the hard-coded `/greeter/api` prefix to match
-- `web/vite.config.ts` + `web/nginx.conf` — update the `/greeter/` proxy path to match
-- `main.go` — update service logic, DB table names
+- rewrites `project.yaml` (picks free grpc/web NodePorts from the cluster when `kubectl` can reach it),
+- renames `proto/greeter.proto`, the `Greeter` service, and the Go module across the repo,
+- regenerates `pb/`, `web/src/generated/`, `k8s/*.yaml`, and `web/.env`,
+- enables CI (`ci.yml.disabled` → `ci.yml`) and resets `VERSION` to `0.1.0`.
 
-### 5. First-time cluster setup
+Then `make build && make test`, review `git status`, commit, and `make hooks-install`. Don't push yet: once CI is enabled, a push to `main` deploys.
 
-Follow the steps in [`k8s/README.md`](k8s/README.md) to set up the registry, CNPG, Kong, the auth secret, and the Cloudflare tunnel.
-
-### 6. Build and deploy
+### 3. Register with the shared platform
 
 ```bash
-make docker-build && make deploy
-make web-docker-build && make web-deploy
-make kong-deploy   # only when proto annotations or Kong config changes
+make kong-register   # prints the kong-values.yaml block for this project
 ```
+
+Paste that block into the platform repo's `k8s/templates/kong-values.yaml`, then from the platform repo run `make generate-k8s && make kong-deploy` once. The volume is `optional: true`, so the gateway still starts before this project's configmap exists.
+
+### 4. First deploy
+
+One-time, from your machine (see [`k8s/README.md`](k8s/README.md) for detail):
+
+```bash
+make deploy-all                      # namespace, deployments, postgres, cloudflared, Kong ingress
+kubectl create secret generic <name>-auth -n <name> \
+  --from-literal=google-client-id="<id>.apps.googleusercontent.com" \
+  --from-literal=jwt-secret="$(openssl rand -base64 48)"
+cp k8s/secrets.example.yaml k8s/secrets.yaml   # add the Cloudflare tunnel token
+kubectl apply -f k8s/secrets.yaml
+make kong-deploy                     # proto configmap + Kong restart
+```
+
+Set `google_client_id` in `project.yaml` (then `make generate-k8s`) once you've created the OAuth client. Then push to `main`: CI tests, builds both images, rolls them out with `make k8s-rollout`, prunes old tags, and refreshes the Kong routes.
+
+### GitHub setup
+
+What `gh` can't do, and how to do it on github.com:
+
+| Setting | Where | Why |
+|---|---|---|
+| Runner group access | latentlab-cc → Settings → Actions → Runner groups → Default → Repository access | Must be **All repositories**, or add each new repo. If any project repo is public, also tick **Allow public repositories**. |
+| Branch protection on `main` (optional) | Repo → Settings → Rules → Rulesets | Require the **Tests + Coverage** and **Integration tests** checks. |
 
 ## Make Targets
 
+Run `make help` for the full list. The main ones:
+
 | Target | Purpose |
 |---|---|
+| `make init NAME=… REPO=…` | Turn a fresh copy of the template into a new project |
 | `make` / `make all` | Regenerate proto + build Go binary |
-| `make build` | Compile `bin/server` |
-| `make proto` | Regenerate Go gRPC stubs |
-| `make web-proto` | Regenerate TypeScript gRPC stubs |
+| `make build` | Compile `bin/server` and every package |
+| `make proto` / `make web-proto` | Regenerate Go / TypeScript gRPC stubs |
 | `make check-api-paths` | Verify proto annotations include `api_prefix` |
 | `make test` | Fast Go tests (sqlmock + interceptor matrix, no Docker) |
-| `make test-integration` | Full suite incl. testcontainers (`-tags=integration`) |
-| `make lint` | Full lint sweep |
-| `make lint-new` | Lint only newly changed lines (used by pre-commit hook) |
-| `make lint-fix` | Auto-fix formatting and simple issues |
-| `make coverage-go` | Generate `coverage/go-coverage.{out,html,txt}` |
-| `make coverage-check` | Enforce floors from project.yaml |
-| `make docker-build` / `make web-docker-build` | Buildx multi-platform build + push |
-| `make deploy` / `make web-deploy` | `kubectl apply` |
-| `make deploy-all` | Apply every manifest in dependency order |
-| `make kong-deploy` | Refresh proto configmaps + helm upgrade + Kong rollout |
-| `make generate-k8s` | Render `k8s/templates/*.yaml` → `k8s/*.yaml` |
-| `make generate-runner` | Render the opt-in self-hosted runner manifest |
-| `make runner-build` / `make runner-deploy` | Build + deploy the runner image |
-| `make registry-show` | List repos/tags in the cluster registry; flag live ones |
-| `make registry-prune` | Delete stale tags + run GC inside the registry pod |
+| `make test-integration` | Integration-tagged tests only (Docker; `VERBOSE=1` for `-v`) |
+| `make vet-integration` | Type-check integration-tagged tests without Docker |
+| `make lint` / `lint-new` / `lint-fix` | golangci-lint (installs via brew, or `go install` on CI) |
+| `make web-build` / `make web-lint` | Frontend build (tsc + vite) / eslint |
+| `make coverage-go` / `coverage-check` | Coverage report / enforce floors from project.yaml |
+| `make docker-build` / `web-docker-build` | Buildx multi-arch build + push (`:VERSION-SHA` and `:latest`) |
+| `make k8s-rollout` | `kubectl set image` both deployments to the current SHA tag and wait |
+| `make release` | Both image builds in parallel, then `k8s-rollout` |
+| `make deploy` / `web-deploy` / `deploy-all` | `kubectl apply` the manifests (bootstrap only) |
+| `make kong-deploy` | Refresh this project's proto configmap + Ingress; restart Kong only if protos changed |
+| `make kong-register` | Print the platform `kong-values.yaml` block for this project |
+| `make generate-k8s` | Render `k8s/templates/*.yaml` → `k8s/*.yaml` and `web/.env` |
+| `make registry-show` / `registry-prune` | List tags / delete this project's stale tags (digest-safe, no GC) |
 | `make hooks-install` | Point git at `.githooks/` for the pre-commit hook |
-| `make loadtest` | 20 concurrent gRPC connections for 30s |
-| `make db-cleanup` | `TRUNCATE echo_requests` |
-| `make clean` | Remove `bin/` and the legacy `loadtest` binary |
+| `make loadtest` / `db-cleanup` | Load test / truncate `echo_requests` |
 
 Never call `go`, `protoc`, `golangci-lint`, or `kubectl` directly — use the targets. See `CLAUDE.md` for the rationale.
 
@@ -270,36 +271,31 @@ The proto file is the **source of truth** for all service contracts. After any c
 make proto              # rebuilds pb/ (Go)
 make web-proto          # rebuilds web/src/generated/ (TypeScript)
 make check-api-paths    # enforce api_prefix on every annotation
-cd web && npx tsc --noEmit   # verify TypeScript compiles
+make web-build          # verify TypeScript compiles
 make test
-make kong-deploy        # only when HTTP routes / new services change
-make docker-build && make deploy
-make web-docker-build && make web-deploy
 ```
 
-> Generated stubs in `pb/` and `web/src/generated/` are committed. A failing `tsc --noEmit` after `make web-proto` means a breaking proto change that requires updates to the web app before it can be deployed.
+Pushing to `main` then rebuilds, rolls out, and runs `make kong-deploy`, which restarts Kong only if a proto actually changed.
+
+> Generated stubs in `pb/` and `web/src/generated/` are committed. A failing `make web-build` after `make web-proto` means a breaking proto change that requires updates to the web app before it can be deployed.
+
+Kong's grpc-gateway plugin has constraints the Go grpc-gateway doesn't; read [`k8s/README.md` → Kong gateway constraints](k8s/README.md#kong-gateway-constraints) before adding HTTP routes.
 
 ## Development
 
 ```bash
-make hooks-install      # one-time per clone — gates commits on lint + compile
+make hooks-install      # one-time per clone: lint, build, vet-integration, and web checks before each commit
 make                    # regen proto + build server
 make test               # fast tests
 make lint               # full lint
 make run                # run gRPC server locally (requires DATABASE_URL)
-cd web && npm run dev   # web app dev server (proxies /greeter/* to Kong)
+cd web && npm run dev   # web dev server; proxies /greeter/* to Kong with Host set to public_domain
 ```
 
-## CI (optional)
+## CI
 
-A GitHub Actions workflow is shipped as `.github/workflows/ci.yml.disabled` — GitHub ignores files that don't end in `.yml`/`.yaml`, so it's dormant by default. To enable:
+`.github/workflows/ci.yml.disabled` is dormant in the template so the template repo never deploys. `make init` enables it. It runs on the shared org runner (`runs-on: [self-hosted, k8s]`):
 
-1. Stand up the self-hosted runner: `make generate-runner && make runner-build`, create the `github-runner-secret`, then `make runner-deploy`. See the header of `k8s/templates/optional/runner.yaml`.
-2. Rename: `mv .github/workflows/ci.yml.disabled .github/workflows/ci.yml`
-3. Commit and push.
-
-The workflow targets a runner labeled `[self-hosted, k8s, greeter]`. Update the label list if you rename `project_name`.
-
-## One-Time Cluster Setup
-
-See [`k8s/README.md`](k8s/README.md) for full infrastructure setup — registry, CNPG, Kong, the `greeter-auth` secret (step 6), and the Cloudflare tunnel.
+- **Tests + Coverage** and **Integration tests** on every PR and push
+- on `main`: **Docker Build (backend)** and **(web)** in parallel → **K8s Rollout** (gated on all four; also prunes stale tags) → **Deploy Kong routes**
+- every Docker-using job ends with `.github/actions/reclaim-dind` so the runner pod's capped DinD disk doesn't fill and get the pod evicted
