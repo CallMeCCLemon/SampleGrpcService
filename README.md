@@ -49,7 +49,7 @@ A GitHub template repository for new services: run `make init` and you get a Go-
   └──────────────────────────────────────┘
 ```
 
-**Public URL:** `https://grpc-demo.latentlab.cc` (via Cloudflare tunnel → `greeter-service` ClusterIP)
+**Public URL:** `https://grpc-demo.latentlab.cc` (via the shared Cloudflare tunnel → `greeter-service` ClusterIP, configured by `k8s/tunnelroute.yaml`)
 
 **LAN access:**
 
@@ -156,7 +156,7 @@ Required env vars (read from the `greeter-auth` k8s secret — see `k8s/README.m
 | gRPC Service | Go 1.25, GORM, CloudNativePG, golang-jwt/v5 |
 | Database | PostgreSQL via CNPG operator on k8s |
 | Cluster | k8s (multi-node, self-hosted) |
-| Tunnel | Cloudflare cloudflared |
+| Tunnel | Shared Cloudflare tunnel via [Cloudflare-Tunnel-Operator](https://github.com/CallMeCCLemon/Cloudflare-Tunnel-Operator) (`TunnelRoute`) |
 | CI | GitHub Actions on the shared org self-hosted DinD runner |
 
 ## Shared platform
@@ -171,7 +171,9 @@ Every project built from this template is a **tenant** of one shared cluster pla
 | CNPG operator | `scripts/install-cnpg.sh` |
 | MinIO (object storage) | `k8s/minio-values.yaml` |
 
-A project only owns its own namespace, Deployments, Postgres cluster, tunnel, its `<project>-proto` configmap, and its host-scoped Kong Ingress. `make kong-deploy` here never runs `helm upgrade kong`: doing that from a project overwrote other projects' proto mounts.
+The Cloudflare tunnel is shared too: one `ClusterTunnel` (`home`, from `tunnel_name` in `project.yaml`) run by [Cloudflare-Tunnel-Operator](https://github.com/CallMeCCLemon/Cloudflare-Tunnel-Operator), with its own 2 cloudflared replicas. Projects attach to it with a `TunnelRoute`.
+
+A project only owns its own namespace, Deployments, Postgres cluster, `TunnelRoute`, its `<project>-proto` configmap, and its host-scoped Kong Ingress. `make kong-deploy` here never runs `helm upgrade kong`: doing that from a project overwrote other projects' proto mounts.
 
 ## Starting a new project
 
@@ -213,14 +215,15 @@ Paste that block into the platform repo's `k8s/templates/kong-values.yaml`, then
 One-time, from your machine (see [`k8s/README.md`](k8s/README.md) for detail):
 
 ```bash
-make deploy-all                      # namespace, deployments, postgres, cloudflared, Kong ingress
+make deploy-all                      # namespace, deployments, postgres, Kong ingress, TunnelRoute
 kubectl create secret generic <name>-auth -n <name> \
   --from-literal=google-client-id="<id>.apps.googleusercontent.com" \
   --from-literal=jwt-secret="$(openssl rand -base64 48)"
-cp k8s/secrets.example.yaml k8s/secrets.yaml   # add the Cloudflare tunnel token
-kubectl apply -f k8s/secrets.yaml
 make kong-deploy                     # proto configmap + Kong restart
+kubectl -n <name> get tunnelroute    # READY=True once the hostname is live
 ```
+
+The `TunnelRoute` publishes `public_domain` through the shared tunnel and creates its DNS record. If the hostname already has a DNS record from an older setup, set `tunnel_adopt_dns: true` in `project.yaml` for the first deploy.
 
 Set `google_client_id` in `project.yaml` (then `make generate-k8s`) once you've created the OAuth client. Then push to `main`: CI tests, builds both images, rolls them out with `make k8s-rollout`, prunes old tags, and refreshes the Kong routes.
 

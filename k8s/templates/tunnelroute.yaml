@@ -1,0 +1,24 @@
+# Auto-generated from k8s/templates/tunnelroute.yaml
+# Edit project.yaml and run 'make generate-k8s' to regenerate. Do not edit by hand.
+#
+# Publishes ${PUBLIC_DOMAIN} through the cluster's shared Cloudflare tunnel
+# (ClusterTunnel "${TUNNEL_NAME}", managed by Cloudflare-Tunnel-Operator). The
+# operator adds the hostname to the tunnel's config and creates the proxied DNS
+# record, so there is no per-project cloudflared, tunnel token, or dashboard step.
+#
+# Check it with: kubectl -n ${NAMESPACE} get tunnelroute ${PROJECT_NAME}
+apiVersion: tunnels.latentlab.cc/v1alpha1
+kind: TunnelRoute
+metadata:
+  name: ${PROJECT_NAME}
+  namespace: ${NAMESPACE}
+spec:
+  tunnelRef:
+    name: ${TUNNEL_NAME}
+  hostname: ${PUBLIC_DOMAIN}
+  service:
+    name: ${PROJECT_NAME}-service
+    port: 80
+  # true lets the operator take over a DNS record it didn't create, e.g. one left
+  # by a dashboard-managed tunnel. Only needed for the first apply after migrating.
+  adoptExistingDnsRecord: ${TUNNEL_ADOPT_DNS}

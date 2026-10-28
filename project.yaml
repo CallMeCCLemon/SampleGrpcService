@@ -33,18 +33,21 @@ web_image_name: sample-grpc-web
 
 # ── Public Access ─────────────────────────────────────────────────────────────
 
-# public_domain: the public hostname served via Cloudflare tunnel.
-#   Steps to set up:
-#     1. Create a tunnel in the Cloudflare Zero Trust dashboard.
-#     2. Set its public hostname to this domain, pointing to the ClusterIP service
-#        http://<project_name>-service.<namespace>:80 inside the cluster.
-#     3. Copy k8s/secrets.example.yaml to k8s/secrets.yaml, fill in your token, apply.
+# public_domain: the public hostname served via the cluster's shared Cloudflare
+#   tunnel. k8s/tunnelroute.yaml asks Cloudflare-Tunnel-Operator to route it to the
+#   ClusterIP service http://<project_name>-service.<namespace>:80 and to create
+#   the proxied DNS record. No dashboard setup or tunnel token is needed.
 public_domain: grpc-demo.latentlab.cc
 
-# tunnel_secret_name: name of the k8s Secret that holds the Cloudflare tunnel token.
-#   k8s/secrets.yaml (gitignored) must contain a Secret with this name.
-#   See k8s/secrets.example.yaml for the required format.
-tunnel_secret_name: sample-grpc-demo-tunnel-creds
+# tunnel_name: the ClusterTunnel (cluster-scoped) this project's hostname attaches
+#   to. Every project on the cluster shares one tunnel; "home" is the default.
+tunnel_name: home
+
+# tunnel_adopt_dns: set to true when public_domain already has a DNS record the
+#   operator didn't create (for example one left by an old dashboard-managed
+#   tunnel), so the operator may take it over. Set it back to false once the
+#   TunnelRoute is Ready: the record is then marked as operator-managed.
+tunnel_adopt_dns: false
 
 # github_repo: URL of the source repository, shown as a GitHub icon link in the web UI.
 #   Update this when forking or renaming the repository.

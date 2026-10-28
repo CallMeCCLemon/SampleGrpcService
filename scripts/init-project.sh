@@ -62,7 +62,7 @@ setcfg namespace          "$NAME"
 setcfg image_name         "$NAME"
 setcfg web_image_name     "$NAME-web"
 setcfg public_domain      "$NAME.$BASE_DOMAIN"
-setcfg tunnel_secret_name "$NAME-tunnel-creds"
+setcfg tunnel_adopt_dns   false
 setcfg github_repo        "$REPO"
 setcfg google_client_id   '""'
 setcfg api_prefix         "/$NAME/api"
@@ -110,5 +110,5 @@ init: done. '$NAME' (module $MODULE, prefix /$NAME/api, https://$NAME.$BASE_DOMA
 Next:
   1. make build && make test          # sanity check, then review 'git status' and commit
   2. make kong-register               # paste the block into the platform repo's kong-values template
-  3. Follow README "First deploy" for secrets, DB, tunnel, and Google OAuth.
+  3. Follow README "First deploy" for the DB, public hostname, and Google OAuth.
 EOF

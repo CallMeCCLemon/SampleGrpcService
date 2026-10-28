@@ -17,7 +17,8 @@ IMAGE_NAME     := $(call cfg,image_name)
 WEB_IMAGE_NAME := $(call cfg,web_image_name)
 GITHUB_REPO    := $(call cfg,github_repo)
 PUBLIC_DOMAIN  := $(call cfg,public_domain)
-TUNNEL_SECRET  := $(call cfg,tunnel_secret_name)
+TUNNEL_NAME    := $(call cfg,tunnel_name)
+TUNNEL_ADOPT_DNS := $(call cfg,tunnel_adopt_dns)
 NODE_IP_LAN    := $(call cfg,node_ip_lan)
 NODE_IP_TS     := $(call cfg,node_ip_tailscale)
 REGISTRY_PORT  := $(call cfg,registry_port)
@@ -280,9 +281,9 @@ deploy-all:  ## Apply every project k8s manifest in dependency order
 	kubectl apply -f k8s/deployment.yaml
 	kubectl apply \
 	    -f k8s/postgres.yaml \
-	    -f k8s/cloudflared.yaml \
 	    -f k8s/kong.yaml \
-	    -f k8s/web-deployment.yaml
+	    -f k8s/web-deployment.yaml \
+	    -f k8s/tunnelroute.yaml
 
 # GIT_SHA is baked into the web image so every commit gets a distinct manifest
 # digest. Without it, commits that do not touch web/ produce identical digests,
@@ -395,7 +396,8 @@ generate-k8s:  ## Render k8s/templates/*.yaml -> k8s/*.yaml from project.yaml
 	    KONG_NODEPORT="$(KONG_NODEPORT)" \
 	    WEB_NODEPORT="$(WEB_NODEPORT)" \
 	    PUBLIC_DOMAIN="$(PUBLIC_DOMAIN)" \
-	    TUNNEL_SECRET="$(TUNNEL_SECRET)" \
+	    TUNNEL_NAME="$(TUNNEL_NAME)" \
+	    TUNNEL_ADOPT_DNS="$(TUNNEL_ADOPT_DNS)" \
 	    GITHUB_REPO="$(GITHUB_REPO)" \
 	    REGISTRY_PORT="$(REGISTRY_PORT)" \
 	    API_PREFIX="$(API_PREFIX)"; \

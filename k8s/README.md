@@ -22,8 +22,11 @@ Kubernetes Cluster
 │   ├── greeter-web          Deployment + NodePort :30090  React/Nginx web app
 │   ├── greeter-service      ClusterIP :80                 Cloudflare tunnel target
 │   ├── greeter-db           CNPG Cluster                  PostgreSQL (1 instance)
-│   ├── cloudflared          Deployment (2 replicas)       Cloudflare tunnel agent
+│   ├── greeter              TunnelRoute                   public hostname on the shared tunnel
 │   └── greeter-http         Ingress (host-scoped)         Kong route + grpc-gateway plugin
+│
+├── cloudflare-tunnels (namespace)                          ← shared platform
+│   └── cloudflared-home     Deployment (2 replicas)       shared tunnel connectors (ClusterTunnel "home")
 │
 ├── kong (namespace)                                        ← shared platform
 │   ├── greeter-proto        ConfigMap                     this repo's protos (make kong-deploy)
@@ -46,11 +49,10 @@ The shared platform (Kong Helm release, registry, CNPG operator, org CI runner, 
 | `templates/*.yaml` | Parameterized source templates — edit these (or project.yaml), not the generated files |
 | `deployment.yaml` | `greeter` gRPC service (Namespace + Deployment + NodePort). Pinned to `:latest` for bootstrap; CI moves the live tag with `make k8s-rollout` |
 | `web-deployment.yaml` | `greeter-web` React app (Deployment + NodePort + ClusterIP for tunnel) |
-| `cloudflared.yaml` | Cloudflare tunnel agent (reads token from secret named in project.yaml) |
+| `tunnelroute.yaml` | `TunnelRoute`: publishes `public_domain` through the shared tunnel to `greeter-service:80` |
 | `kong.yaml` | `KongPlugin` (grpc-gateway, proto at `/etc/kong/protos/<project>/<project>.proto`) + host-scoped `Ingress` |
 | `postgres.yaml` | CNPG `Cluster` resource (1 instance, 5Gi) |
-| `secrets.example.yaml` | Template for the Cloudflare tunnel secret — copy and fill in token |
-| `secrets.yaml` | **Gitignored** — real secret, never commit |
+| `secrets.yaml` | **Gitignored**, for any project secrets you keep in a file; never commit |
 
 ## First-Time Setup
 
@@ -72,21 +74,22 @@ make deploy-all
 
 The CNPG operator creates a secret named `<project_name>-db-app` once the database is ready; the backend's `DATABASE_URL` reads from it.
 
-### 3. Cloudflare Tunnel
+### 3. Public hostname
+
+Nothing to do by hand: `make deploy-all` applied `tunnelroute.yaml`, and
+Cloudflare-Tunnel-Operator adds `public_domain` to the shared tunnel and creates
+its proxied DNS record. Check it:
 
 ```bash
-cp k8s/secrets.example.yaml k8s/secrets.yaml
-# Edit k8s/secrets.yaml — replace <your-cloudflare-tunnel-token>
-kubectl apply -f k8s/secrets.yaml
+kubectl -n <namespace> get tunnelroute
+# NAME      HOSTNAME                 TUNNEL   SERVICE                                              READY
+# greeter   grpc-demo.latentlab.cc   home     http://greeter-service.grpc-demo.svc.cluster.local:80   True
 ```
 
-In the [Cloudflare Zero Trust dashboard](https://one.dash.cloudflare.com) → Networks → Tunnels → your tunnel → Public Hostname, set the target to:
-```
-http://<project_name>-service.<namespace>:80
-```
-(e.g. `http://greeter-service.grpc-demo:80`)
-
-> Get your tunnel token from the dashboard → Networks → Tunnels → your tunnel → Configure → Install connector.
+If it isn't Ready, `kubectl -n <namespace> describe tunnelroute <project_name>` says
+why. `DNSRecordConflict` means the hostname already has a DNS record from an older
+setup: set `tunnel_adopt_dns: true` in `project.yaml`, run `make generate-k8s`, and
+apply `k8s/tunnelroute.yaml` again.
 
 ### 4. Auth secret (Google sign-in)
 
@@ -184,7 +187,7 @@ LAN (node_ip_lan)
   Same NodePorts above; k8s nodes and CI runners push/pull images on :32000 over LAN
 
 Public
-  https://<public_domain>  →  Cloudflare tunnel → <project_name>-service.<namespace>:80
+  https://<public_domain>  →  shared Cloudflare tunnel → <project_name>-service.<namespace>:80
 ```
 
 Inside the cluster, services communicate using k8s DNS (no IPs):
@@ -192,5 +195,5 @@ Inside the cluster, services communicate using k8s DNS (no IPs):
 | From | To | Address |
 |------|----|---------|
 | `greeter-web` Nginx | Kong | `kong-gateway-proxy.kong:80` (forwards the original Host) |
-| `cloudflared` | Web app | `greeter-service.grpc-demo:80` |
+| `cloudflared-home` (shared tunnel) | Web app | `greeter-service.grpc-demo.svc.cluster.local:80` |
 | `greeter` | PostgreSQL | `greeter-db-rw.grpc-demo:5432` (from CNPG secret) |

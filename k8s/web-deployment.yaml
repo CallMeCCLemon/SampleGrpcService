@@ -67,9 +67,8 @@ spec:
       protocol: TCP
 
 ---
-# ClusterIP targeted by the cloudflared tunnel.
-# In the Cloudflare Zero Trust dashboard, set the tunnel's public hostname to route
-# to http://greeter-service.grpc-demo:80 (k8s internal DNS).
+# ClusterIP targeted by the shared Cloudflare tunnel: k8s/tunnelroute.yaml routes
+# grpc-demo.latentlab.cc to http://greeter-service.grpc-demo:80.
 apiVersion: v1
 kind: Service
 metadata:
