@@ -9,7 +9,9 @@ ENV VITE_GITHUB_REPO=$VITE_GITHUB_REPO
 ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID
 RUN npm run build
 
-FROM nginx:alpine
+# Pinned so a rebuild cannot reuse a cached older nginx:alpine. 1.31.9 fixes
+# the 2026-11-18 nginx advisories (CVE-2026-123007 and others).
+FROM nginx:1.31.9-alpine
 COPY --from=builder /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 # A per-commit final layer gives every build a distinct manifest digest, so
